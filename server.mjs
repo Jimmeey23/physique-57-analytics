@@ -73,16 +73,55 @@ function assertConfigured() {
   if (missing.length) throw new Error(`Server configuration is missing ${missing.join(", ")}. Open Settings to add your Google OAuth credentials.`);
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function accessToken() {
   assertConfigured();
   if (tokenCache && Date.now() < tokenCache.expiresAt - 60_000) return tokenCache.value;
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, refresh_token: config.refreshToken, grant_type: "refresh_token" }),
-  });
+  let response;
+  try {
+    response = await fetchWithTimeout("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, refresh_token: config.refreshToken, grant_type: "refresh_token" }),
+    }, 15000);
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new Error("Connection to Google timed out after 15 seconds. Check your internet connection and ensure googleapis.com is reachable.");
+    }
+    const msg = err?.cause?.code === "ENOTFOUND" 
+      ? "Cannot reach Google (DNS lookup failed). Check your internet connection."
+      : err?.cause?.code === "ECONNREFUSED"
+      ? "Cannot reach Google (connection refused). Check your internet connection or firewall."
+      : err?.cause?.code === "ETIMEDOUT"
+      ? "Cannot reach Google (connection timed out). Check your internet connection."
+      : `Network error reaching Google: ${err?.message || err}`;
+    throw new Error(msg);
+  }
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`Google authentication failed (${response.status}): ${json.error_description || json.error || "check the server credentials"}`);
+  if (!response.ok) {
+    const errCode = json.error;
+    const errDesc = json.error_description;
+    if (errCode === "invalid_grant") {
+      throw new Error("Invalid refresh token. The token may have been revoked or expired. Generate a new one in Settings.");
+    }
+    if (errCode === "invalid_client") {
+      throw new Error("Invalid client credentials. Check your Client ID and Client Secret in Settings.");
+    }
+    if (errCode === "unauthorized_client") {
+      throw new Error("This client is not authorized for this operation. Check your OAuth consent screen settings.");
+    }
+    throw new Error(`Google authentication failed (${response.status}): ${errDesc || errCode || "check your credentials in Settings"}`);
+  }
   tokenCache = { value: json.access_token, expiresAt: Date.now() + Number(json.expires_in || 3600) * 1000 };
   return tokenCache.value;
 }
@@ -92,9 +131,21 @@ async function sheetValues(spreadsheetId, sheetName, formatted = false) {
   const range = encodeURIComponent(`${sheetName}!A1:BZ200000`);
   const render = formatted ? "FORMATTED_VALUE" : "UNFORMATTED_VALUE";
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?majorDimension=ROWS&valueRenderOption=${render}&dateTimeRenderOption=FORMATTED_STRING`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  let response;
+  try {
+    response = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${token}` } }, 20000);
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new Error(`Timeout reading ${sheetName} — Google Sheets API took too long to respond.`);
+    }
+    throw new Error(`Network error reading ${sheetName}: ${err?.message || err}`);
+  }
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`Google Sheets error (${response.status}): ${json?.error?.message || `unable to read ${sheetName}`}`);
+  if (!response.ok) {
+    if (response.status === 403) throw new Error(`Access denied to ${sheetName} — the spreadsheet may not be shared with your account.`);
+    if (response.status === 404) throw new Error(`Sheet "${sheetName}" not found in spreadsheet ${spreadsheetId}.`);
+    throw new Error(`Google Sheets error (${response.status}) reading ${sheetName}: ${json?.error?.message || "unknown error"}`);
+  }
   return Array.isArray(json.values) ? json.values.map((row) => Array.isArray(row) ? row.map((cell) => cell == null ? "" : String(cell)) : []) : [];
 }
 
@@ -199,16 +250,33 @@ app.post("/api/settings/test", async (_request, response) => {
   try {
     const token = await accessToken();
     // Quick test: list sheets from the sales spreadsheet
-    const testUrl = `https://sheets.googleapis.com/v4/spreadsheets/${config.salesSpreadsheetId}?fields=properties.title`;
-    const testRes = await fetch(testUrl, { headers: { Authorization: `Bearer ${token}` } });
+    const testUrl = `https://sheets.googleapis.com/v4/spreadsheets/${config.salesSpreadsheetId}?fields=properties.title,sheets.properties.title`;
+    let testRes;
+    try {
+      testRes = await fetchWithTimeout(testUrl, { headers: { Authorization: `Bearer ${token}` } }, 15000);
+    } catch (err) {
+      if (err?.name === "AbortError") {
+        throw new Error("Connection to Google Sheets API timed out. Check your internet connection.");
+      }
+      throw new Error(`Network error reaching Google Sheets API: ${err?.message || err}`);
+    }
     const testJson = await testRes.json().catch(() => ({}));
     if (!testRes.ok) {
-      throw new Error(testJson?.error?.message || `Sheets API returned ${testRes.status}`);
+      if (testRes.status === 403) {
+        throw new Error(`Access denied (403). The service account or OAuth client doesn't have permission to access this spreadsheet. Make sure the spreadsheet is shared with the appropriate account.`);
+      }
+      if (testRes.status === 404) {
+        throw new Error(`Spreadsheet not found (404). Check the Sales Spreadsheet ID in Settings.`);
+      }
+      throw new Error(testJson?.error?.message || `Google Sheets API returned ${testRes.status}`);
     }
+    const sheetNames = testJson?.sheets?.map((s) => s?.properties?.title).filter(Boolean) || [];
     response.json({
       ok: true,
       message: `Connected successfully to "${testJson?.properties?.title || config.salesSpreadsheetId}"`,
       spreadsheetTitle: testJson?.properties?.title || "",
+      sheetCount: sheetNames.length,
+      sheetNames: sheetNames.slice(0, 10),
     });
   } catch (error) {
     console.error("Settings test failed:", error.message);

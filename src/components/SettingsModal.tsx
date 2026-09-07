@@ -37,6 +37,15 @@ const emptyForm: FormState = {
   leadsSpreadsheetId: "", lapsedSpreadsheetId: "", checkinsSpreadsheetId: "",
 };
 
+interface TestResult {
+  ok: boolean;
+  message?: string;
+  spreadsheetTitle?: string;
+  sheetCount?: number;
+  sheetNames?: string[];
+  error?: string;
+}
+
 type TestStatus = "idle" | "testing" | "success" | "error";
 
 export function SettingsModal({ open, onClose, onSaved }: Props) {
@@ -49,7 +58,7 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
-  const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
 
   // Fetch current settings when opened
   useEffect(() => {
@@ -122,14 +131,14 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
 
   const handleTest = useCallback(async () => {
     setTestStatus("testing");
-    setTestMsg(null);
+    setTestResult(null);
     try {
       const res = await testConnection();
       setTestStatus("success");
-      setTestMsg(res.message || "Connection successful!");
+      setTestResult(res);
     } catch (err: unknown) {
       setTestStatus("error");
-      setTestMsg(err instanceof Error ? err.message : "Connection test failed.");
+      setTestResult({ ok: false, error: err instanceof Error ? err.message : "Connection test failed." });
     }
   }, []);
 
@@ -248,13 +257,25 @@ export function SettingsModal({ open, onClose, onSaved }: Props) {
                        <Wifi className="h-3.5 w-3.5" />}
                       {testStatus === "testing" ? "Testing…" : "Test Connection"}
                     </button>
-                    {testMsg && (
-                      <span className={cn(
-                        "text-[11.5px] font-medium",
-                        testStatus === "success" ? "text-pos" : testStatus === "error" ? "text-neg" : "text-mid"
+                    {testResult && (
+                      <div className={cn(
+                        "max-w-md rounded-lg border px-3 py-2 text-[11.5px]",
+                        testStatus === "success" ? "border-pos/20 bg-pos-soft/40" : "border-neg/20 bg-neg-soft/40"
                       )}>
-                        {testMsg}
-                      </span>
+                        <p className={cn("font-medium", testStatus === "success" ? "text-pos" : "text-neg")}>
+                          {testResult.ok ? (testResult.message || "Connection successful!") : (testResult.error || "Connection failed.")}
+                        </p>
+                        {testResult.ok && testResult.sheetNames && testResult.sheetNames.length > 0 && (
+                          <p className="mt-1 text-pos/70">
+                            Found {testResult.sheetCount ?? testResult.sheetNames.length} sheet{(testResult.sheetCount ?? 0) !== 1 ? "s" : ""}: {testResult.sheetNames.slice(0, 5).join(", ")}{(testResult.sheetCount ?? 0) > 5 ? "…" : ""}
+                          </p>
+                        )}
+                        {!testResult.ok && (
+                          <p className="mt-1 text-neg/70">
+                            Check your credentials and ensure the spreadsheet is shared with your Google account.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

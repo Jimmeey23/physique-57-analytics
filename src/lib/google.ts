@@ -92,14 +92,19 @@ export async function saveSettings(settings: SaveSettingsPayload): Promise<SaveS
 
 export interface TestConnectionResponse {
   ok: boolean;
-  message: string;
+  message?: string;
   spreadsheetTitle?: string;
+  sheetCount?: number;
+  sheetNames?: string[];
   error?: string;
 }
 
 export async function testConnection(): Promise<TestConnectionResponse> {
   const response = await fetch("/api/settings/test", { method: "POST" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(json.error || `Connection test failed (${response.status}).`);
+  if (!response.ok) {
+    // Server returned error — surface the detailed error message
+    throw new Error(json.error || `Connection test failed (${response.status}).`);
+  }
   return json as TestConnectionResponse;
 }
