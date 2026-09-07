@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Users, TrendingUp, Target, Clock, DollarSign,
-  UserCheck, X, Calendar, MapPin,
-  Repeat,
+  X, Calendar, MapPin,
+  Repeat, DollarSign,
 } from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
 import { compact, intFmt, pct, dec } from "../../lib/format";
@@ -11,6 +10,8 @@ import { cn } from "../../utils/cn";
 import { Panel, SectionHeader, Btn, ShareBar } from "../ui";
 import { DataTable, type Col } from "../DataTable";
 import { TrendChart, Donut, RankBars } from "../Charts";
+import { MetricCard } from "../MetricCard";
+import type { KPI } from "../../lib/analytics";
 
 /* ── Types ── */
 interface NewClient {
@@ -133,7 +134,7 @@ function parseNewClients(members: FlexTable): NewClient[] {
 }
 
 /* ── Main Section ── */
-export function NewClientsSection({ members }: { members: FlexTable }) {
+export function NewClientsSection({ members, kpis }: { members: FlexTable; kpis: KPI[] }) {
   const clients = useMemo(() => parseNewClients(members), [members]);
   const [filter, setFilter] = useState<"all" | "converted" | "notconverted" | "active" | "lapsed">("all");
   const [selected, setSelected] = useState<NewClient | null>(null);
@@ -255,13 +256,10 @@ export function NewClientsSection({ members }: { members: FlexTable }) {
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-        <StatCard icon={<Users />} label="Total New Clients" value={intFmt(stats.total)} accent="blue" />
-        <StatCard icon={<Target />} label="Conversion Rate" value={pct(stats.conversionRate)} accent="emerald" />
-        <StatCard icon={<DollarSign />} label="Total LTV" value={compact(stats.totalLtv)} accent="violet" />
-        <StatCard icon={<TrendingUp />} label="Avg LTV / Client" value={compact(stats.avgLtv)} accent="amber" />
-        <StatCard icon={<UserCheck />} label="Active Clients" value={intFmt(stats.active)} sub={pct(stats.activeRate)} accent="teal" />
-        <StatCard icon={<Clock />} label="Avg Days to Convert" value={dec(stats.avgSpan, 0)} accent="rose" />
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {kpis.map((k, i) => (
+          <MetricCard key={k.id} kpi={k} index={i} />
+        ))}
       </div>
 
       {/* Conversion funnel */}
@@ -346,32 +344,6 @@ export function NewClientsSection({ members }: { members: FlexTable }) {
 }
 
 /* ── Helpers ── */
-const accentMap: Record<string, string> = {
-  blue: "from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-600 dark:text-blue-400",
-  emerald: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  violet: "from-violet-500/10 to-violet-600/5 border-violet-500/20 text-violet-600 dark:text-violet-400",
-  amber: "from-amber-500/10 to-amber-600/5 border-amber-500/20 text-amber-600 dark:text-amber-400",
-  teal: "from-teal-500/10 to-teal-600/5 border-teal-500/20 text-teal-600 dark:text-teal-400",
-  rose: "from-rose-500/10 to-rose-600/5 border-rose-500/20 text-rose-600 dark:text-rose-400",
-};
-
-function StatCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub?: string; accent: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className={cn("card relative overflow-hidden border bg-gradient-to-br p-4", accentMap[accent] || accentMap.blue)}
-    >
-      <div className="flex items-start justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide opacity-70">{label}</span>
-        <span className="opacity-40">{icon}</span>
-      </div>
-      <p className="mt-2 font-display text-[26px] font-bold leading-none tracking-tight">{value}</p>
-      {sub && <p className="mt-1 text-[11px] opacity-60">{sub}</p>}
-    </motion.div>
-  );
-}
 
 function FunnelStep({ label, value, total }: { label: string; value: number; total: number; color: string }) {
   const pctVal = total ? (value / total) * 100 : 0;

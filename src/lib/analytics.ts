@@ -427,3 +427,621 @@ export const money = (n: number) => {
   if (abs >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
   return `₹${n.toFixed(0)}`;
 };
+
+// ─── New Client KPIs ───
+export function computeNewClientKPIs(
+  rows: { rows: Record<string, string>[] },
+): KPI[] {
+  const data = rows.rows;
+  const total = data.length;
+  const converted = data.filter((r) => {
+    const status = String(r["Conversion Status"] || "").toLowerCase();
+    return status.includes("converted") && !status.includes("not");
+  }).length;
+  const notConverted = data.filter((r) => {
+    const status = String(r["Conversion Status"] || "").toLowerCase();
+    return status.includes("not") && status.includes("converted");
+  }).length;
+  const active = data.filter((r) => {
+    const lifecycle = String(r["Lifecycle Status"] || "").toLowerCase();
+    const retention = String(r["Retention Status"] || "").toLowerCase();
+    return lifecycle.includes("active") || retention.includes("active");
+  }).length;
+  const lapsed = data.filter((r) => {
+    const lifecycle = String(r["Lifecycle Status"] || "").toLowerCase();
+    const retention = String(r["Retention Status"] || "").toLowerCase();
+    return lifecycle.includes("lapsed") || lifecycle.includes("churned") || retention.includes("churned");
+  }).length;
+  
+  const totalLtv = data.reduce((sum, r) => {
+    const ltv = parseFloat(String(r["Ltv"] || r["LTV"] || "0").replace(/[^\d.-]/g, "")) || 0;
+    return sum + ltv;
+  }, 0);
+  
+  const avgLtv = total > 0 ? totalLtv / total : 0;
+  const conversionRate = total > 0 ? (converted / total) * 100 : 0;
+  const activeRate = total > 0 ? (active / total) * 100 : 0;
+  
+  const conversionSpans = data
+    .map((r) => parseFloat(String(r["Conversion Span (Days)"] || "0").replace(/[^\d.-]/g, "")) || 0)
+    .filter((v) => v > 0);
+  const avgDaysToConvert = conversionSpans.length > 0
+    ? conversionSpans.reduce((a, b) => a + b, 0) / conversionSpans.length
+    : 0;
+
+  return [
+    {
+      id: "total_new_clients",
+      label: "Total New Clients",
+      format: "int",
+      group: "New Clients",
+      hint: "Total number of new client records in the selected period.",
+      value: total,
+      prev: 0,
+    },
+    {
+      id: "conversion_rate",
+      label: "Conversion Rate",
+      format: "pct",
+      group: "New Clients",
+      hint: "Percentage of new clients who converted to paying members.",
+      value: conversionRate,
+      prev: 0,
+    },
+    {
+      id: "total_ltv",
+      label: "Total LTV",
+      format: "money",
+      group: "New Clients",
+      hint: "Combined lifetime value of all new clients.",
+      value: totalLtv,
+      prev: 0,
+    },
+    {
+      id: "avg_ltv",
+      label: "Avg LTV per Client",
+      format: "money",
+      group: "New Clients",
+      hint: "Average lifetime value per new client.",
+      value: avgLtv,
+      prev: 0,
+    },
+    {
+      id: "active_clients",
+      label: "Active Clients",
+      format: "int",
+      group: "New Clients",
+      hint: "Number of new clients currently active.",
+      value: active,
+      prev: 0,
+    },
+    {
+      id: "active_rate",
+      label: "Active Rate",
+      format: "pct",
+      group: "New Clients",
+      hint: "Percentage of new clients who remain active.",
+      value: activeRate,
+      prev: 0,
+    },
+    {
+      id: "converted_clients",
+      label: "Converted",
+      format: "int",
+      group: "New Clients",
+      hint: "Number of new clients who converted to paying members.",
+      value: converted,
+      prev: 0,
+    },
+    {
+      id: "not_converted",
+      label: "Not Converted",
+      format: "int",
+      group: "New Clients",
+      hint: "Number of new clients who have not converted.",
+      value: notConverted,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "lapsed_clients",
+      label: "Lapsed Clients",
+      format: "int",
+      group: "New Clients",
+      hint: "Number of new clients who have lapsed or churned.",
+      value: lapsed,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "avg_days_to_convert",
+      label: "Avg Days to Convert",
+      format: "dec",
+      group: "New Clients",
+      hint: "Average number of days from first visit to conversion.",
+      value: avgDaysToConvert,
+      prev: 0,
+    },
+  ];
+}
+
+// ─── Lapsed Member KPIs ───
+export function computeLapsedKPIs(
+  rows: { rows: Record<string, string>[] },
+): KPI[] {
+  const data = rows.rows;
+  const total = data.length;
+  
+  const churned = data.filter((r) => {
+    const status = String(r["Status"] || "").toLowerCase();
+    return status.includes("churned") || status.includes("expired");
+  }).length;
+  
+  const atRisk = data.filter((r) => {
+    const daysSince = parseFloat(String(r["Days Since Last Visit"] || "0").replace(/[^\d.-]/g, "")) || 0;
+    return daysSince >= 14 && daysSince < 60 && !r["Churned Date"];
+  }).length;
+  
+  const newMembers = data.filter((r) => {
+    const daysActive = parseFloat(String(r["Days Active"] || "0").replace(/[^\d.-]/g, "")) || 0;
+    return daysActive <= 30;
+  }).length;
+  
+  const totalRevenue = data.reduce((sum, r) => {
+    const amount = parseFloat(String(r["Amount Paid"] || "0").replace(/[^\d.-]/g, "")) || 0;
+    return sum + amount;
+  }, 0);
+  
+  const daysSinceVisits = data
+    .map((r) => parseFloat(String(r["Days Since Last Visit"] || "0").replace(/[^\d.-]/g, "")) || 0)
+    .filter((v) => v > 0);
+  const avgDaysSinceVisit = daysSinceVisits.length > 0
+    ? daysSinceVisits.reduce((a, b) => a + b, 0) / daysSinceVisits.length
+    : 0;
+  
+  const sessionsCompleted = data
+    .map((r) => parseFloat(String(r["Total Sessions Completed"] || "0").replace(/[^\d.-]/g, "")) || 0);
+  const avgSessions = sessionsCompleted.length > 0
+    ? sessionsCompleted.reduce((a, b) => a + b, 0) / sessionsCompleted.length
+    : 0;
+  
+  const avgCancelRate = data.reduce((sum, r) => {
+    const rate = parseFloat(String(r["Cancellation Rate %"] || "0").replace(/[^\d.-]/g, "")) || 0;
+    return sum + rate;
+  }, 0) / (total || 1);
+  
+  const avgAttendRate = data.reduce((sum, r) => {
+    const rate = parseFloat(String(r["Attendance Rate %"] || "0").replace(/[^\d.-]/g, "")) || 0;
+    return sum + rate;
+  }, 0) / (total || 1);
+
+  return [
+    {
+      id: "total_members",
+      label: "Total Members",
+      format: "int",
+      group: "Lapsed",
+      hint: "Total number of members tracked in the lapsed dataset.",
+      value: total,
+      prev: 0,
+    },
+    {
+      id: "churned_members",
+      label: "Churned",
+      format: "int",
+      group: "Lapsed",
+      hint: "Number of members who have churned or expired.",
+      value: churned,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "at_risk_members",
+      label: "At Risk",
+      format: "int",
+      group: "Lapsed",
+      hint: "Members with 14-60 days since last visit (not yet churned).",
+      value: atRisk,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "new_lapsed_members",
+      label: "New Members",
+      format: "int",
+      group: "Lapsed",
+      hint: "Members with 30 days or less active.",
+      value: newMembers,
+      prev: 0,
+    },
+    {
+      id: "lapsed_revenue",
+      label: "Total Revenue",
+      format: "money",
+      group: "Lapsed",
+      hint: "Combined revenue from all tracked members.",
+      value: totalRevenue,
+      prev: 0,
+    },
+    {
+      id: "avg_days_since_visit",
+      label: "Avg Days Since Visit",
+      format: "dec",
+      group: "Lapsed",
+      hint: "Average number of days since last visit across all members.",
+      value: avgDaysSinceVisit,
+      prev: 0,
+    },
+    {
+      id: "avg_sessions_completed",
+      label: "Avg Sessions",
+      format: "dec",
+      group: "Lapsed",
+      hint: "Average number of sessions completed per member.",
+      value: avgSessions,
+      prev: 0,
+    },
+    {
+      id: "avg_cancel_rate_lapsed",
+      label: "Avg Cancel Rate",
+      format: "pct",
+      group: "Lapsed",
+      hint: "Average cancellation rate across all members.",
+      value: avgCancelRate,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "avg_attend_rate",
+      label: "Avg Attendance Rate",
+      format: "pct",
+      group: "Lapsed",
+      hint: "Average attendance rate across all members.",
+      value: avgAttendRate,
+      prev: 0,
+    },
+  ];
+}
+
+// ─── Late Cancellation KPIs ───
+export function computeLateCancelKPIs(
+  rows: { rows: Record<string, string>[] },
+): KPI[] {
+  const data = rows.rows;
+  const total = data.length;
+  
+  const lateCancelled = data.filter((r) => {
+    const val = String(r["Late Cancelled"] || "").toLowerCase();
+    return val === "true" || val === "yes" || val === "1";
+  }).length;
+  
+  const allCancelled = data.filter((r) => {
+    const val = String(r["Cancelled"] || "").toLowerCase();
+    return val === "true" || val === "yes" || val === "1";
+  }).length;
+  
+  const noShows = data.filter((r) => {
+    const val = String(r["No Show"] || "").toLowerCase();
+    return val === "true" || val === "yes" || val === "1";
+  }).length;
+  
+  const confirmed = total - allCancelled - noShows;
+  const lateRate = total > 0 ? (lateCancelled / total) * 100 : 0;
+  const cancelRate = total > 0 ? (allCancelled / total) * 100 : 0;
+  const noShowRate = total > 0 ? (noShows / total) * 100 : 0;
+  const showRate = total > 0 ? (confirmed / total) * 100 : 0;
+
+  return [
+    {
+      id: "total_bookings_late",
+      label: "Total Bookings",
+      format: "int",
+      group: "Late Cancellations",
+      hint: "Total number of booking records analyzed.",
+      value: total,
+      prev: 0,
+    },
+    {
+      id: "late_cancels",
+      label: "Late Cancellations",
+      format: "int",
+      group: "Late Cancellations",
+      hint: "Number of bookings that were cancelled late.",
+      value: lateCancelled,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "late_cancel_rate",
+      label: "Late Cancel Rate",
+      format: "pct",
+      group: "Late Cancellations",
+      hint: "Percentage of bookings that were cancelled late.",
+      value: lateRate,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "all_cancels",
+      label: "All Cancellations",
+      format: "int",
+      group: "Late Cancellations",
+      hint: "Total cancellations (including late cancels).",
+      value: allCancelled,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "cancel_rate",
+      label: "Cancel Rate",
+      format: "pct",
+      group: "Late Cancellations",
+      hint: "Percentage of all bookings that were cancelled.",
+      value: cancelRate,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "no_shows",
+      label: "No Shows",
+      format: "int",
+      group: "Late Cancellations",
+      hint: "Number of bookings where the member did not show up.",
+      value: noShows,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "no_show_rate",
+      label: "No Show Rate",
+      format: "pct",
+      group: "Late Cancellations",
+      hint: "Percentage of bookings that resulted in no-shows.",
+      value: noShowRate,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "confirmed_bookings",
+      label: "Confirmed",
+      format: "int",
+      group: "Late Cancellations",
+      hint: "Number of bookings that were confirmed (not cancelled or no-show).",
+      value: confirmed,
+      prev: 0,
+    },
+    {
+      id: "show_rate",
+      label: "Show Rate",
+      format: "pct",
+      group: "Late Cancellations",
+      hint: "Percentage of bookings that were confirmed and attended.",
+      value: showRate,
+      prev: 0,
+    },
+  ];
+}
+
+// ─── Bookings KPIs ───
+export function computeBookingsKPIs(
+  rows: { rows: Record<string, string>[] },
+): KPI[] {
+  const data = rows.rows;
+  const total = data.length;
+  
+  const confirmed = data.filter((r) => {
+    const cancelled = String(r["Cancelled"] || "").toLowerCase();
+    const noShow = String(r["No Show"] || "").toLowerCase();
+    return cancelled !== "true" && cancelled !== "yes" && cancelled !== "1" &&
+           noShow !== "true" && noShow !== "yes" && noShow !== "1";
+  }).length;
+  
+  const cancelled = data.filter((r) => {
+    const val = String(r["Cancelled"] || "").toLowerCase();
+    return val === "true" || val === "yes" || val === "1";
+  }).length;
+  
+  const newBookings = data.filter((r) => {
+    const val = String(r["Is New"] || "").toLowerCase();
+    return val === "true" || val === "yes" || val === "1" || val.includes("new");
+  }).length;
+  
+  const uniqueMembers = new Set(data.map((r) => r["Member Id"] || r["Member ID"] || "")).size;
+  const uniqueClasses = new Set(data.map((r) => r["Cleaned Class"] || r["Cleaned Class Attended"] || "")).size;
+  
+  const showRate = total > 0 ? (confirmed / total) * 100 : 0;
+  const cancelRate = total > 0 ? (cancelled / total) * 100 : 0;
+
+  return [
+    {
+      id: "total_bookings",
+      label: "Total Bookings",
+      format: "int",
+      group: "Bookings",
+      hint: "Total number of booking records.",
+      value: total,
+      prev: 0,
+    },
+    {
+      id: "confirmed_bookings_main",
+      label: "Confirmed",
+      format: "int",
+      group: "Bookings",
+      hint: "Number of confirmed bookings (not cancelled or no-show).",
+      value: confirmed,
+      prev: 0,
+    },
+    {
+      id: "show_rate_main",
+      label: "Show Rate",
+      format: "pct",
+      group: "Bookings",
+      hint: "Percentage of bookings that were confirmed.",
+      value: showRate,
+      prev: 0,
+    },
+    {
+      id: "cancelled_bookings",
+      label: "Cancelled",
+      format: "int",
+      group: "Bookings",
+      hint: "Number of bookings that were cancelled.",
+      value: cancelled,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "cancel_rate_main",
+      label: "Cancel Rate",
+      format: "pct",
+      group: "Bookings",
+      hint: "Percentage of bookings that were cancelled.",
+      value: cancelRate,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "new_bookings",
+      label: "New Bookings",
+      format: "int",
+      group: "Bookings",
+      hint: "Number of bookings marked as new.",
+      value: newBookings,
+      prev: 0,
+    },
+    {
+      id: "unique_members_bookings",
+      label: "Unique Members",
+      format: "int",
+      group: "Bookings",
+      hint: "Number of unique members with bookings.",
+      value: uniqueMembers,
+      prev: 0,
+    },
+    {
+      id: "unique_classes_bookings",
+      label: "Unique Classes",
+      format: "int",
+      group: "Bookings",
+      hint: "Number of unique classes booked.",
+      value: uniqueClasses,
+      prev: 0,
+    },
+  ];
+}
+
+// ─── Funnel/Leads KPIs ───
+export function computeFunnelKPIs(
+  rows: { rows: Record<string, string>[] },
+): KPI[] {
+  const data = rows.rows;
+  const total = data.length;
+  
+  const won = data.filter((r) => {
+    const status = String(r["Status"] || "").toLowerCase();
+    return status.includes("won");
+  }).length;
+  
+  const lost = data.filter((r) => {
+    const status = String(r["Status"] || "").toLowerCase();
+    return status.includes("lost");
+  }).length;
+  
+  const active = total - won - lost;
+  const winRate = total > 0 ? (won / total) * 100 : 0;
+  const lostRate = total > 0 ? (lost / total) * 100 : 0;
+  
+  const withFollowUp = data.filter((r) => {
+    return r["Follow Up 1 Date"] || r["Follow Up 2 Date"] || 
+           r["Follow Up 3 Date"] || r["Follow Up 4 Date"];
+  }).length;
+  
+  const followUpCounts = data.map((r) => {
+    let count = 0;
+    if (r["Follow Up 1 Date"]) count++;
+    if (r["Follow Up 2 Date"]) count++;
+    if (r["Follow Up 3 Date"]) count++;
+    if (r["Follow Up 4 Date"]) count++;
+    return count;
+  });
+  const avgFollowUps = followUpCounts.length > 0
+    ? followUpCounts.reduce((a, b) => a + b, 0) / followUpCounts.length
+    : 0;
+
+  return [
+    {
+      id: "total_leads",
+      label: "Total Leads",
+      format: "int",
+      group: "Funnel",
+      hint: "Total number of leads in the pipeline.",
+      value: total,
+      prev: 0,
+    },
+    {
+      id: "won_leads",
+      label: "Won",
+      format: "int",
+      group: "Funnel",
+      hint: "Number of leads that were successfully converted.",
+      value: won,
+      prev: 0,
+    },
+    {
+      id: "win_rate",
+      label: "Win Rate",
+      format: "pct",
+      group: "Funnel",
+      hint: "Percentage of leads that were won.",
+      value: winRate,
+      prev: 0,
+    },
+    {
+      id: "lost_leads",
+      label: "Lost",
+      format: "int",
+      group: "Funnel",
+      hint: "Number of leads that were lost.",
+      value: lost,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "lost_rate",
+      label: "Lost Rate",
+      format: "pct",
+      group: "Funnel",
+      hint: "Percentage of leads that were lost.",
+      value: lostRate,
+      prev: 0,
+      invert: true,
+    },
+    {
+      id: "active_leads",
+      label: "Active",
+      format: "int",
+      group: "Funnel",
+      hint: "Number of leads still in the pipeline (not won or lost).",
+      value: active,
+      prev: 0,
+    },
+    {
+      id: "leads_with_followup",
+      label: "With Follow-up",
+      format: "int",
+      group: "Funnel",
+      hint: "Number of leads that have at least one follow-up recorded.",
+      value: withFollowUp,
+      prev: 0,
+    },
+    {
+      id: "avg_followups",
+      label: "Avg Follow-ups",
+      format: "dec",
+      group: "Funnel",
+      hint: "Average number of follow-ups per lead.",
+      value: avgFollowUps,
+      prev: 0,
+    },
+  ];
+}

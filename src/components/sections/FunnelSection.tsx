@@ -7,6 +7,8 @@ import {
 import type { FlexTable } from "../../lib/sessions";
 import { intFmt, pct, dec } from "../../lib/format";
 import { cn } from "../../utils/cn";
+import { MetricCard } from "../MetricCard";
+import type { KPI } from "../../lib/analytics";
 import { Panel, SectionHeader, Btn, ShareBar } from "../ui";
 import { DataTable, type Col } from "../DataTable";
 import { TrendChart, Donut, RankBars } from "../Charts";
@@ -90,7 +92,7 @@ function parseLeads(data: FlexTable): Lead[] {
   }));
 }
 
-export function FunnelSection({ leads }: { leads: FlexTable }) {
+export function FunnelSection({ leads, kpis }: { leads: FlexTable; kpis: KPI[] }) {
   const leadsData = useMemo(() => parseLeads(leads), [leads]);
   const [tab, setTab] = useState<"all" | "won" | "lost" | "active">("all");
 
@@ -230,13 +232,10 @@ export function FunnelSection({ leads }: { leads: FlexTable }) {
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-        <FStatCard icon={<Users />} label="Total Leads" value={intFmt(stats.total)} accent="blue" />
-        <FStatCard icon={<CheckCircle2 />} label="Won" value={intFmt(stats.won)} sub={pct(stats.winRate)} accent="emerald" />
-        <FStatCard icon={<XCircle />} label="Lost" value={intFmt(stats.lost)} sub={pct(stats.lostRate)} accent="rose" />
-        <FStatCard icon={<Clock />} label="Active" value={intFmt(stats.active)} accent="amber" />
-        <FStatCard icon={<Target />} label="Win Rate" value={pct(stats.winRate)} accent="violet" />
-        <FStatCard icon={<Zap />} label="Avg Follow-ups" value={dec(followUpStats.avgFollowUps, 1)} accent="teal" />
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {kpis.map((k, i) => (
+          <MetricCard key={k.id} kpi={k} index={i} />
+        ))}
       </div>
 
       {/* Funnel visualization */}
@@ -335,33 +334,6 @@ export function FunnelSection({ leads }: { leads: FlexTable }) {
 }
 
 /* ── Components ── */
-
-const accentMap: Record<string, string> = {
-  blue: "from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-600 dark:text-blue-400",
-  emerald: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  violet: "from-violet-500/10 to-violet-600/5 border-violet-500/20 text-violet-600 dark:text-violet-400",
-  amber: "from-amber-500/10 to-amber-600/5 border-amber-500/20 text-amber-600 dark:text-amber-400",
-  teal: "from-teal-500/10 to-teal-600/5 border-teal-500/20 text-teal-600 dark:text-teal-400",
-  rose: "from-rose-500/10 to-rose-600/5 border-rose-500/20 text-rose-600 dark:text-rose-400",
-};
-
-function FStatCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub?: string; accent: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className={cn("card relative overflow-hidden border bg-gradient-to-br p-4", accentMap[accent] || accentMap.blue)}
-    >
-      <div className="flex items-start justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide opacity-70">{label}</span>
-        <span className="opacity-40">{icon}</span>
-      </div>
-      <p className="mt-2 font-display text-[26px] font-bold leading-none tracking-tight">{value}</p>
-      {sub && <p className="mt-1 text-[11px] opacity-60">{sub}</p>}
-    </motion.div>
-  );
-}
 
 function FunnelBlock({ label, value, total }: { label: string; value: number; total: number; color: string }) {
   const pctVal = total ? (value / total) * 100 : 0;

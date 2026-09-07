@@ -7,6 +7,8 @@ import {
 import type { FlexTable } from "../../lib/sessions";
 import { intFmt, pct } from "../../lib/format";
 import { cn } from "../../utils/cn";
+import { MetricCard } from "../MetricCard";
+import type { KPI } from "../../lib/analytics";
 import { Panel, SectionHeader, Btn } from "../ui";
 import { DataTable, type Col } from "../DataTable";
 import { TrendChart, Donut, RankBars } from "../Charts";
@@ -91,7 +93,7 @@ function parseBookings(data: FlexTable): BookingRecord[] {
   }));
 }
 
-export function LateCancellationSection({ bookings }: { bookings: FlexTable }) {
+export function LateCancellationSection({ bookings, kpis }: { bookings: FlexTable; kpis: KPI[] }) {
   const records = useMemo(() => parseBookings(bookings), [bookings]);
   const [tab, setTab] = useState<"late" | "all_cancelled" | "noshow">("late");
 
@@ -246,12 +248,10 @@ export function LateCancellationSection({ bookings }: { bookings: FlexTable }) {
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-        <LCStatCard icon={<CalendarClock />} label="Total Bookings" value={intFmt(stats.total)} accent="blue" />
-        <LCStatCard icon={<AlertTriangle />} label="Late Cancels" value={intFmt(stats.totalLate)} sub={pct(stats.lateRate)} accent="rose" />
-        <LCStatCard icon={<Ban />} label="All Cancels" value={intFmt(stats.totalCancelled)} sub={pct(stats.cancelRate)} accent="amber" />
-        <LCStatCard icon={<User />} label="No Shows" value={intFmt(stats.totalNoShow)} sub={pct(stats.noShowRate)} accent="violet" />
-        <LCStatCard icon={<Activity />} label="Show Rate" value={pct(100 - stats.cancelRate - stats.noShowRate)} accent="emerald" />
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {kpis.map((k, i) => (
+          <MetricCard key={k.id} kpi={k} index={i} />
+        ))}
       </div>
 
       {/* Charts */}
@@ -350,32 +350,6 @@ export function LateCancellationSection({ bookings }: { bookings: FlexTable }) {
 }
 
 /* ── Components ── */
-
-const accentMap: Record<string, string> = {
-  blue: "from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-600 dark:text-blue-400",
-  emerald: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  violet: "from-violet-500/10 to-violet-600/5 border-violet-500/20 text-violet-600 dark:text-violet-400",
-  amber: "from-amber-500/10 to-amber-600/5 border-amber-500/20 text-amber-600 dark:text-amber-400",
-  rose: "from-rose-500/10 to-rose-600/5 border-rose-500/20 text-rose-600 dark:text-rose-400",
-};
-
-function LCStatCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub?: string; accent: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className={cn("card relative overflow-hidden border bg-gradient-to-br p-4", accentMap[accent] || accentMap.blue)}
-    >
-      <div className="flex items-start justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide opacity-70">{label}</span>
-        <span className="opacity-40">{icon}</span>
-      </div>
-      <p className="mt-2 font-display text-[26px] font-bold leading-none tracking-tight">{value}</p>
-      {sub && <p className="mt-1 text-[11px] opacity-60">{sub}</p>}
-    </motion.div>
-  );
-}
 
 function EmptyChart({ msg }: { msg: string }) {
   return <div className="flex h-[260px] items-center justify-center text-[12px] text-lo">{msg}</div>;

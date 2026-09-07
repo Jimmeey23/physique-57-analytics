@@ -1,15 +1,14 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  UserX, AlertTriangle, Clock, DollarSign,
-  TrendingDown, X, Ban,
-} from "lucide-react";
+import { X } from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
 import { compact, intFmt, pct, dec } from "../../lib/format";
 import { cn } from "../../utils/cn";
 import { Panel, SectionHeader, Btn, ShareBar } from "../ui";
 import { DataTable, type Col } from "../DataTable";
 import { TrendChart, Donut, RankBars } from "../Charts";
+import { MetricCard } from "../MetricCard";
+import type { KPI } from "../../lib/analytics";
 
 interface LapsedMember {
   id: string;
@@ -117,7 +116,7 @@ function parseLapsed(data: FlexTable): LapsedMember[] {
   }));
 }
 
-export function LapsedSection({ lapsed }: { lapsed: FlexTable }) {
+export function LapsedSection({ lapsed, kpis }: { lapsed: FlexTable; kpis: KPI[] }) {
   const members = useMemo(() => parseLapsed(lapsed), [lapsed]);
   const [tab, setTab] = useState<"all" | "churned" | "atrisk" | "new">("all");
   const [selected, setSelected] = useState<LapsedMember | null>(null);
@@ -227,13 +226,10 @@ export function LapsedSection({ lapsed }: { lapsed: FlexTable }) {
       />
 
       {/* KPI Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-        <LStatCard icon={<UserX />} label="Total Members" value={intFmt(stats.total)} accent="blue" />
-        <LStatCard icon={<Ban />} label="Churned" value={intFmt(stats.churned)} accent="rose" />
-        <LStatCard icon={<AlertTriangle />} label="At Risk" value={intFmt(stats.atRisk)} accent="amber" />
-        <LStatCard icon={<DollarSign />} label="Total Revenue" value={compact(stats.totalRevenue)} accent="violet" />
-        <LStatCard icon={<TrendingDown />} label="Avg Days Since Visit" value={dec(stats.avgDaysSinceVisit, 0)} accent="teal" />
-        <LStatCard icon={<Clock />} label="Avg Sessions" value={dec(stats.avgSessions, 1)} accent="emerald" />
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+        {kpis.map((k, i) => (
+          <MetricCard key={k.id} kpi={k} index={i} />
+        ))}
       </div>
 
       {/* Risk overview */}
@@ -310,33 +306,6 @@ export function LapsedSection({ lapsed }: { lapsed: FlexTable }) {
 }
 
 /* ── Components ── */
-
-const accentMap: Record<string, string> = {
-  blue: "from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-600 dark:text-blue-400",
-  emerald: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  violet: "from-violet-500/10 to-violet-600/5 border-violet-500/20 text-violet-600 dark:text-violet-400",
-  amber: "from-amber-500/10 to-amber-600/5 border-amber-500/20 text-amber-600 dark:text-amber-400",
-  teal: "from-teal-500/10 to-teal-600/5 border-teal-500/20 text-teal-600 dark:text-teal-400",
-  rose: "from-rose-500/10 to-rose-600/5 border-rose-500/20 text-rose-600 dark:text-rose-400",
-};
-
-function LStatCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub?: string; accent: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className={cn("card relative overflow-hidden border bg-gradient-to-br p-4", accentMap[accent] || accentMap.blue)}
-    >
-      <div className="flex items-start justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide opacity-70">{label}</span>
-        <span className="opacity-40">{icon}</span>
-      </div>
-      <p className="mt-2 font-display text-[26px] font-bold leading-none tracking-tight">{value}</p>
-      {sub && <p className="mt-1 text-[11px] opacity-60">{sub}</p>}
-    </motion.div>
-  );
-}
 
 function FunnelBlock({ label, value, total }: { label: string; value: number; total: number; color: string }) {
   const pctVal = total ? (value / total) * 100 : 0;

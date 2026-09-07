@@ -9,7 +9,7 @@ import { cn } from "./utils/cn";
 import { parseSheet, type SaleRow } from "./lib/types";
 import { fetchDashboard } from "./lib/google";
 import { applyFilters, applyFiltersIgnoringDate } from "./lib/filter";
-import { computeKPIs, monthlySeries, aggregate, groupBy, isGood, type KPI } from "./lib/analytics";
+import { computeKPIs, computeNewClientKPIs, computeLapsedKPIs, computeLateCancelKPIs, computeBookingsKPIs, computeFunnelKPIs, monthlySeries, aggregate, groupBy, isGood, type KPI } from "./lib/analytics";
 import {
   parseFlexible, parseSessions, sessionInLocations, type FlexTable, type SessionRow,
 } from "./lib/sessions";
@@ -172,6 +172,13 @@ export default function App() {
     const t = rows.map((r) => r.paymentDate?.getTime() || 0).filter(Boolean);
     return t.length ? new Date(Math.max(...t)) : new Date();
   }, [rows]);
+
+  /* KPIs for new sections */
+  const newClientKpis = useMemo(() => computeNewClientKPIs(members), [members]);
+  const lapsedKpis = useMemo(() => computeLapsedKPIs(lapsed), [lapsed]);
+  const lateCancelKpis = useMemo(() => computeLateCancelKPIs(bookings), [bookings]);
+  const bookingsKpis = useMemo(() => computeBookingsKPIs(bookings), [bookings]);
+  const funnelKpis = useMemo(() => computeFunnelKPIs(leads), [leads]);
 
   /* union of sales + session locations for shared tabs */
   const locations = useMemo(() => {
@@ -364,7 +371,6 @@ export default function App() {
           </div>
 
           {/* ── LOCATION TABS ── */}
-          {(view === "sales" || view === "classes") && (
           <div className="flex flex-wrap items-center gap-2.5 pb-4">
             <span className="mr-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-lo">
               Locations
@@ -411,9 +417,7 @@ export default function App() {
                 {filters.locations.length} combined
               </span>
             )}
-            <Tip text="Location tabs drive both Sales and Classes views. Select one to tint the entire page in that studio's colour, or several to combine them." />
           </div>
-          )}
         </div>
 
         {/* ── Section rail ── */}
@@ -577,17 +581,17 @@ export default function App() {
         ) : view === "teachers" ? (
           <TeacherPerformanceSection payroll={payroll} sessions={sessions} members={members} />
         ) : view === "newclients" ? (
-          <NewClientsSection members={members} />
+          <NewClientsSection members={members} kpis={newClientKpis} />
         ) : view === "lapsed" ? (
-          <LapsedSection lapsed={lapsed} />
+          <LapsedSection lapsed={lapsed} kpis={lapsedKpis} />
         ) : view === "late" ? (
-          <LateCancellationSection bookings={bookings} />
+          <LateCancellationSection bookings={bookings} kpis={lateCancelKpis} />
         ) : view === "bookings" ? (
-          <BookingsSection bookings={bookings} />
+          <BookingsSection bookings={bookings} kpis={bookingsKpis} />
         ) : view === "leads" ? (
-          <FunnelSection leads={leads} />
+          <FunnelSection leads={leads} kpis={funnelKpis} />
         ) : (
-          <NewClientsSection members={members} />
+          <NewClientsSection members={members} kpis={newClientKpis} />
         )}
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-5 text-[10.5px] text-lo">
