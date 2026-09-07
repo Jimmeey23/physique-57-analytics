@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity, AlertTriangle, BarChart3, Brain, CalendarClock, Dumbbell, Layers,
-  LayoutGrid, Loader2, Moon, Package, Receipt, RefreshCw, Star, Sun, Table2,
+  LayoutGrid, Loader2, Moon, Package, Receipt, RefreshCw, Settings, Star, Sun, Table2,
   Trophy, Users, Wifi, Sparkles
 } from "lucide-react";
 import { cn } from "./utils/cn";
@@ -32,6 +32,7 @@ import { LapsedSection } from "./components/sections/LapsedSection";
 import { LateCancellationSection } from "./components/sections/LateCancellationSection";
 import { BookingsSection } from "./components/sections/BookingsSection";
 import { FunnelSection } from "./components/sections/FunnelSection";
+import { SettingsModal } from "./components/SettingsModal";
 import { TrendChart, Donut } from "./components/Charts";
 
 type View = "sales" | "classes" | "teachers" | "late" | "bookings" | "leads" | "members" | "newclients" | "lapsed";
@@ -108,6 +109,7 @@ export default function App() {
   const [classFilters, setClassFilters] = useState<ClassFilterState>(emptyClassFilters);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [activeSection, setActiveSection] = useState<string>("overview");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
@@ -353,6 +355,11 @@ export default function App() {
                   {dark ? <Moon className="h-3.5 w-3.5 text-hi" /> : <Sun className="h-3.5 w-3.5 text-warn" />}
                 </motion.span>
               </button>
+              <button onClick={() => setSettingsOpen(true)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface2 text-lo transition-colors hover:bg-surface2 hover:text-hi"
+                title="Settings">
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
@@ -476,7 +483,7 @@ export default function App() {
         {loading && !rows.length && view === "sales" ? (
           <DashboardLoader label="Syncing sales intelligence" />
         ) : error && !rows.length && view === "sales" ? (
-          <LoadError title="Sales data is unavailable" message={error} onRetry={() => loadData()} />
+          <LoadError title="Sales data is unavailable" message={error} onRetry={() => loadData()} onOpenSettings={() => setSettingsOpen(true)} />
         ) : view === "sales" ? (
           <>
             <section id="overview" ref={(el) => { sectionRefs.current.overview = el; }} className="scroll-mt-44">
@@ -551,7 +558,7 @@ export default function App() {
             {classLoading && !sessions.length ? (
               <DashboardLoader label="Syncing class intelligence" />
             ) : classError && !sessions.length ? (
-              <LoadError title="Class data is unavailable" message={classError} onRetry={() => loadData()} />
+              <LoadError title="Class data is unavailable" message={classError} onRetry={() => loadData()} onOpenSettings={() => setSettingsOpen(true)} />
             ) : (
               <ClassSection
                 sessions={sessions}
@@ -566,7 +573,7 @@ export default function App() {
         ) : loading ? (
           <DashboardLoader label={`Syncing ${activeView.label.toLowerCase()} intelligence`} />
         ) : error ? (
-          <LoadError title={`${activeView.label} data is unavailable`} message={error} onRetry={() => loadData()} />
+          <LoadError title={`${activeView.label} data is unavailable`} message={error} onRetry={() => loadData()} onOpenSettings={() => setSettingsOpen(true)} />
         ) : view === "teachers" ? (
           <TeacherPerformanceSection payroll={payroll} sessions={sessions} members={members} />
         ) : view === "newclients" ? (
@@ -594,6 +601,16 @@ export default function App() {
           </span>
         </footer>
       </main>
+
+      <AnimatePresence>
+        {settingsOpen && (
+          <SettingsModal
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            onSaved={() => loadData()}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -618,15 +635,28 @@ function DashboardLoader({ label }: { label: string }) {
   );
 }
 
-function LoadError({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
+function LoadError({ title, message, onRetry, onOpenSettings }: { title: string; message: string; onRetry: () => void; onOpenSettings?: () => void }) {
+  const isCredentialsError = /missing|credential|configuration|GOOGLE_CLIENT|OAuth/i.test(message);
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center rounded-2xl border border-neg/20 bg-surface px-8 py-12 text-center shadow-sm" role="alert">
       <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-neg-soft text-neg"><AlertTriangle className="h-5 w-5" /></span>
       <h2 className="font-display text-lg font-semibold text-hi">{title}</h2>
       <p className="mt-2 max-w-md text-[12px] leading-relaxed text-mid">{message}</p>
-      <button onClick={onRetry} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-loc px-5 py-2.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-loc focus-visible:ring-offset-2">
-        <RefreshCw className="h-3.5 w-3.5" /> Retry sync
-      </button>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <button onClick={onRetry} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-loc px-5 py-2.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-loc focus-visible:ring-offset-2">
+          <RefreshCw className="h-3.5 w-3.5" /> Retry sync
+        </button>
+        {isCredentialsError && onOpenSettings && (
+          <button onClick={onOpenSettings} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-loc/30 bg-loc-soft px-5 py-2.5 text-[12px] font-semibold text-loc transition-colors hover:bg-loc-soft/80">
+            <Settings className="h-3.5 w-3.5" /> Open Settings
+          </button>
+        )}
+      </div>
+      {isCredentialsError && (
+        <p className="mt-4 max-w-md text-[11px] leading-relaxed text-lo">
+          Configure your Google OAuth credentials in Settings to connect to your spreadsheets.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,12 +1,33 @@
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const app = express();
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 5173);
-const config = {
+
+// ── Persistent settings file ──
+const SETTINGS_PATH = path.join(root, ".settings.json");
+
+function loadSettingsFile() {
+  try {
+    if (fs.existsSync(SETTINGS_PATH)) {
+      return JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
+    }
+  } catch (err) {
+    console.warn("Could not read .settings.json:", err.message);
+  }
+  return {};
+}
+
+function saveSettingsFile(data) {
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(data, null, 2), "utf8");
+}
+
+// ── Runtime config (env defaults, overlaid with saved settings) ──
+const envDefaults = {
   clientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "",
   clientSecret: process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || "",
   refreshToken: process.env.GOOGLE_REFRESH_TOKEN || process.env.VITE_GOOGLE_REFRESH_TOKEN || "",
@@ -18,6 +39,17 @@ const config = {
   lapsedSpreadsheetId: process.env.LAPSED_SPREADSHEET_ID || "1x-0iFgnYmEqt-b2MfAgHVx5CErcX5NtZYB9p5Rh6f1I",
   checkinsSpreadsheetId: process.env.CHECKINS_SPREADSHEET_ID || "1a7XKv2WCog7o8nYuV8YcFdqtfPYJNRO6DelJ6Hn_z6Q",
 };
+
+const savedSettings = loadSettingsFile();
+const config = { ...envDefaults };
+
+// Overlay saved settings (non-empty values override env defaults)
+for (const key of Object.keys(envDefaults)) {
+  if (savedSettings[key] && String(savedSettings[key]).trim()) {
+    config[key] = savedSettings[key];
+  }
+}
+
 const classSheets = {
   sessions: ["sessions", "Sessions", "SESSIONS", "Session", "session", "Class Sessions"],
   recurring: ["recurring", "Recurring", "RECURRING", "recurrings"],
@@ -38,7 +70,7 @@ function assertConfigured() {
   if (!config.clientId) missing.push("GOOGLE_CLIENT_ID");
   if (!config.clientSecret) missing.push("GOOGLE_CLIENT_SECRET");
   if (!config.refreshToken) missing.push("GOOGLE_REFRESH_TOKEN");
-  if (missing.length) throw new Error(`Server configuration is missing ${missing.join(", ")}. Add them to .env and restart.`);
+  if (missing.length) throw new Error(`Server configuration is missing ${missing.join(", ")}. Open Settings to add your Google OAuth credentials.`);
 }
 
 async function accessToken() {
@@ -77,8 +109,114 @@ async function firstAvailable(spreadsheetId, candidates, formatted = false) {
   throw new Error(errors.slice(0, 3).join(" · ") || "No matching sheet with data was found.");
 }
 
+// ── Helpers ──
+const mask = (value) => {
+  if (!value || String(value).length < 8) return value ? "••••••••" : "";
+  const s = String(value);
+  return s.slice(0, 4) + "••••••••" + s.slice(-4);
+};
+
+// ── JSON body parser ──
 app.disable("x-powered-by");
-app.get("/api/health", (_request, response) => response.json({ ok: true, googleConfigured: Boolean(config.clientId && config.clientSecret && config.refreshToken) }));
+app.use(express.json({ limit: "1mb" }));
+
+// ── Health ──
+app.get("/api/health", (_request, response) => response.json({
+  ok: true,
+  googleConfigured: Boolean(config.clientId && config.clientSecret && config.refreshToken),
+}));
+
+// ── Settings: read ──
+app.get("/api/settings", (_request, response) => {
+  response.json({
+    clientId: mask(config.clientId),
+    clientSecret: mask(config.clientSecret),
+    refreshToken: mask(config.refreshToken),
+    salesSpreadsheetId: config.salesSpreadsheetId,
+    salesSheetName: config.salesSheetName,
+    classSpreadsheetId: config.classSpreadsheetId,
+    payrollSpreadsheetId: config.payrollSpreadsheetId,
+    leadsSpreadsheetId: config.leadsSpreadsheetId,
+    lapsedSpreadsheetId: config.lapsedSpreadsheetId,
+    checkinsSpreadsheetId: config.checkinsSpreadsheetId,
+    hasCredentials: Boolean(config.clientId && config.clientSecret && config.refreshToken),
+    fromEnv: {
+      clientId: Boolean(envDefaults.clientId),
+      clientSecret: Boolean(envDefaults.clientSecret),
+      refreshToken: Boolean(envDefaults.refreshToken),
+    },
+  });
+});
+
+// ── Settings: save ──
+app.post("/api/settings", (request, response) => {
+  try {
+    const body = request.body || {};
+    const updates = {};
+    const keys = [
+      "clientId", "clientSecret", "refreshToken",
+      "salesSpreadsheetId", "salesSheetName", "classSpreadsheetId",
+      "payrollSpreadsheetId", "leadsSpreadsheetId",
+      "lapsedSpreadsheetId", "checkinsSpreadsheetId",
+    ];
+    for (const key of keys) {
+      if (body[key] !== undefined) {
+        const val = String(body[key] || "").trim();
+        // Skip masked values (user didn't change the field)
+        if (/^.{4}•{8}.{4}$/.test(val)) continue;
+        updates[key] = val;
+      }
+    }
+
+    // Persist to disk
+    const current = loadSettingsFile();
+    const merged = { ...current, ...updates };
+    saveSettingsFile(merged);
+
+    // Apply to runtime config
+    for (const [key, val] of Object.entries(updates)) {
+      if (val) config[key] = val;
+    }
+
+    // Clear token cache when credentials change so next call uses new creds
+    if (updates.clientId || updates.clientSecret || updates.refreshToken) {
+      tokenCache = null;
+    }
+
+    response.json({
+      ok: true,
+      updated: Object.keys(updates),
+      hasCredentials: Boolean(config.clientId && config.clientSecret && config.refreshToken),
+    });
+  } catch (error) {
+    console.error("Settings save failed:", error.message);
+    response.status(500).json({ error: error.message || "Failed to save settings." });
+  }
+});
+
+// ── Settings: test connection ──
+app.post("/api/settings/test", async (_request, response) => {
+  try {
+    const token = await accessToken();
+    // Quick test: list sheets from the sales spreadsheet
+    const testUrl = `https://sheets.googleapis.com/v4/spreadsheets/${config.salesSpreadsheetId}?fields=properties.title`;
+    const testRes = await fetch(testUrl, { headers: { Authorization: `Bearer ${token}` } });
+    const testJson = await testRes.json().catch(() => ({}));
+    if (!testRes.ok) {
+      throw new Error(testJson?.error?.message || `Sheets API returned ${testRes.status}`);
+    }
+    response.json({
+      ok: true,
+      message: `Connected successfully to "${testJson?.properties?.title || config.salesSpreadsheetId}"`,
+      spreadsheetTitle: testJson?.properties?.title || "",
+    });
+  } catch (error) {
+    console.error("Settings test failed:", error.message);
+    response.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+// ── Dashboard ──
 app.get("/api/dashboard", async (_request, response) => {
   try {
     const [sales, sessions, recurring, teacherRecurring, payroll, members, bookings, leads, lapsed, checkins] = await Promise.all([
