@@ -13,11 +13,19 @@ const config = {
   salesSpreadsheetId: process.env.SALES_SPREADSHEET_ID || process.env.VITE_SALES_SPREADSHEET_ID || "1HbGnJk-peffUp7XoXSlsL55924E9yUt8cP_h93cdTT0",
   salesSheetName: process.env.SALES_SHEET_NAME || "Sales",
   classSpreadsheetId: process.env.CLASS_SPREADSHEET_ID || process.env.VITE_SESSIONS_SPREADSHEET_ID || "16wFlke0bHFcmfn-3UyuYlGnImBq0DY7ouVYAlAFTZys",
+  payrollSpreadsheetId: process.env.PAYROLL_SPREADSHEET_ID || process.env.VITE_PAYROLL_SPREADSHEET_ID || "",
+  leadsSpreadsheetId: process.env.LEADS_SPREADSHEET_ID || "",
 };
 const classSheets = {
   sessions: ["sessions", "Sessions", "SESSIONS", "Session", "session", "Class Sessions"],
   recurring: ["recurring", "Recurring", "RECURRING", "recurrings"],
   teacherRecurring: ["teacher recurring", "Teacher Recurring", "TEACHER RECURRING", "teacher_recurring", "TeacherRecurring", "teacher-recurring"],
+};
+const intelligenceSheets = {
+  payroll: ["payroll", "Payroll", "PAYROLL"],
+  members: ["New", "new", "NEW"],
+  bookings: ["bookings", "Bookings", "BOOKINGS"],
+  leads: ["◉ Leads", "Leads", "leads", "LEADS"],
 };
 let tokenCache = null;
 
@@ -69,13 +77,27 @@ app.disable("x-powered-by");
 app.get("/api/health", (_request, response) => response.json({ ok: true, googleConfigured: Boolean(config.clientId && config.clientSecret && config.refreshToken) }));
 app.get("/api/dashboard", async (_request, response) => {
   try {
-    const [sales, sessions, recurring, teacherRecurring] = await Promise.all([
+    const [sales, sessions, recurring, teacherRecurring, payroll, members, bookings, leads] = await Promise.all([
       sheetValues(config.salesSpreadsheetId, config.salesSheetName),
       firstAvailable(config.classSpreadsheetId, classSheets.sessions, true),
       firstAvailable(config.classSpreadsheetId, classSheets.recurring, true).catch(() => ({ values: [], sheet: "" })),
       firstAvailable(config.classSpreadsheetId, classSheets.teacherRecurring, true).catch(() => ({ values: [], sheet: "" })),
+      config.payrollSpreadsheetId ? firstAvailable(config.payrollSpreadsheetId, intelligenceSheets.payroll, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
+      config.payrollSpreadsheetId ? firstAvailable(config.payrollSpreadsheetId, intelligenceSheets.members, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
+      config.payrollSpreadsheetId ? firstAvailable(config.payrollSpreadsheetId, ["bookings", "Bookings", "Late Cancellations"], true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
+      config.leadsSpreadsheetId ? firstAvailable(config.leadsSpreadsheetId, intelligenceSheets.leads, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
     ]);
-    response.set("Cache-Control", "no-store").json({ sales, classes: { sessions: sessions.values, sessionsSheet: sessions.sheet, recurring: recurring.values, recurringSheet: recurring.sheet, teacherRecurring: teacherRecurring.values, teacherSheet: teacherRecurring.sheet }, syncedAt: new Date().toISOString() });
+    response.set("Cache-Control", "no-store").json({
+      sales,
+      classes: { sessions: sessions.values, sessionsSheet: sessions.sheet, recurring: recurring.values, recurringSheet: recurring.sheet, teacherRecurring: teacherRecurring.values, teacherSheet: teacherRecurring.sheet },
+      intelligence: {
+        payroll: payroll.values, payrollSheet: payroll.sheet,
+        members: members.values, membersSheet: members.sheet,
+        bookings: bookings.values, bookingsSheet: bookings.sheet,
+        leads: leads.values, leadsSheet: leads.sheet,
+      },
+      syncedAt: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Dashboard sync failed:", error.message);
     response.status(502).json({ error: error.message || "Unable to load Google Sheets data." });

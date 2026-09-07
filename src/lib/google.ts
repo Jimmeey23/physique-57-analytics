@@ -8,6 +8,16 @@ export interface DashboardPayload {
     teacherRecurring: string[][];
     teacherSheet: string;
   };
+  intelligence: {
+    payroll: string[][];
+    payrollSheet: string;
+    members: string[][];
+    membersSheet: string;
+    bookings: string[][];
+    bookingsSheet: string;
+    leads: string[][];
+    leadsSheet: string;
+  };
   syncedAt: string;
 }
 

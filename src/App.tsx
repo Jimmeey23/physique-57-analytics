@@ -26,9 +26,20 @@ import { OpsSection } from "./components/sections/OpsSection";
 import { InsightsSection } from "./components/sections/InsightsSection";
 import { ClassSection } from "./components/sections/ClassSection";
 import { AdvancedLabsSection } from "./components/sections/AdvancedLabsSection";
+import { TeacherPerformanceSection } from "./components/sections/TeacherPerformanceSection";
 import { TrendChart, Donut } from "./components/Charts";
 
-type View = "sales" | "classes";
+type View = "sales" | "classes" | "teachers" | "late" | "bookings" | "leads" | "members";
+
+const VIEW_TABS = [
+  { id: "sales", label: "Sales", icon: BarChart3 },
+  { id: "classes", label: "Classes", icon: Dumbbell },
+  { id: "teachers", label: "Teachers", icon: Users },
+  { id: "late", label: "Late cancels", icon: CalendarClock },
+  { id: "bookings", label: "Bookings", icon: Receipt },
+  { id: "leads", label: "Leads & Funnel", icon: Trophy },
+  { id: "members", label: "Conversion & Retention", icon: Activity },
+] as const;
 
 const SALES_SECTIONS = [
   { id: "overview", label: "Overview", icon: BarChart3, title: "Command Centre",
@@ -76,6 +87,10 @@ export default function App() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [recurring, setRecurring] = useState<FlexTable>({ headers: [], rows: [] });
   const [teacherRec, setTeacherRec] = useState<FlexTable>({ headers: [], rows: [] });
+  const [payroll, setPayroll] = useState<FlexTable>({ headers: [], rows: [] });
+  const [members, setMembers] = useState<FlexTable>({ headers: [], rows: [] });
+  const [bookings, setBookings] = useState<FlexTable>({ headers: [], rows: [] });
+  const [leads, setLeads] = useState<FlexTable>({ headers: [], rows: [] });
   const [classMeta, setClassMeta] = useState({ sessionsSheet: "", recurringSheet: "", teacherSheet: "" });
   const [loading, setLoading] = useState(true);
   const [classLoading, setClassLoading] = useState(true);
@@ -105,6 +120,10 @@ export default function App() {
       setSessions(parsedSessions);
       setRecurring(parseFlexible(payload.classes.recurring));
       setTeacherRec(parseFlexible(payload.classes.teacherRecurring));
+      setPayroll(parseFlexible(payload.intelligence.payroll));
+      setMembers(parseFlexible(payload.intelligence.members));
+      setBookings(parseFlexible(payload.intelligence.bookings));
+      setLeads(parseFlexible(payload.intelligence.leads));
       setClassMeta({
         sessionsSheet: payload.classes.sessionsSheet || "sessions",
         recurringSheet: payload.classes.recurringSheet || "—",
@@ -119,6 +138,10 @@ export default function App() {
       setSessions([]);
       setRecurring({ headers: [], rows: [] });
       setTeacherRec({ headers: [], rows: [] });
+      setPayroll({ headers: [], rows: [] });
+      setMembers({ headers: [], rows: [] });
+      setBookings({ headers: [], rows: [] });
+      setLeads({ headers: [], rows: [] });
       setError(message);
       setClassError(message);
     } finally {
@@ -163,7 +186,7 @@ export default function App() {
 
   /* scroll spy across the active view */
   useEffect(() => {
-    const ids = view === "sales" ? SALES_SECTIONS.map((s) => s.id) : CLASS_RAIL.map((s) => s.id);
+    const ids = view === "sales" ? SALES_SECTIONS.map((s) => s.id) : view === "classes" ? CLASS_RAIL.map((s) => s.id) : [];
     const obs = new IntersectionObserver(
       (entries) => {
         const vis = entries
@@ -256,7 +279,9 @@ export default function App() {
       </div>
     );
 
-  const rail = view === "sales" ? SALES_SECTIONS : CLASS_RAIL;
+  const rail = view === "sales" ? SALES_SECTIONS : view === "classes" ? CLASS_RAIL : [];
+  const activeView = VIEW_TABS.find((item) => item.id === view) || VIEW_TABS[0];
+  const ActiveViewIcon = activeView.icon;
 
   return (
     <div className="min-h-screen bg-app text-hi">
@@ -266,43 +291,29 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-5 py-5">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-loc text-white shadow-md">
-                {view === "sales" ? <BarChart3 className="h-5 w-5" /> : <Dumbbell className="h-5 w-5" />}
+                <motion.span animate={{ rotate: [0, -7, 7, 0], scale: [1, 1.08, 1.08, 1] }} transition={{ duration: 2.8, repeat: Infinity, repeatDelay: 2 }}><ActiveViewIcon className="h-5 w-5" /></motion.span>
               </div>
               <div>
                 <h1 className="font-display text-[28px] font-bold leading-none tracking-tight sm:text-[32px]">
-                  {view === "sales" ? "Sales Intelligence" : "Class Intelligence"}
+                  {activeView.label} Intelligence
                 </h1>
                 <p className="mt-1.5 text-[12px] text-lo">
                   {view === "sales"
                     ? `${intFmt(rows.length)} line items · ${locations.length} locations · through ${dateStr(maxDate)}`
-                    : `${intFmt(sessions.length)} sessions · ${locations.length} locations · ${classMeta.sessionsSheet || "sessions"}`}
+                    : view === "classes" ? `${intFmt(sessions.length)} sessions · ${locations.length} locations · ${classMeta.sessionsSheet || "sessions"}`
+                    : view === "teachers" ? `${intFmt(payroll.rows.length)} payroll records · ${intFmt(bookings.rows.length)} booking records`
+                    : "Live operational intelligence from Google Sheets"}
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               {/* view switch */}
-              <div className="mr-1 inline-flex rounded-xl border border-line bg-surface2 p-1">
-                <button onClick={() => setView("sales")}
-                  className={cn("relative flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
-                    view === "sales" ? "text-white" : "text-lo hover:text-mid")}>
-                  {view === "sales" && (
-                    <motion.span layoutId="viewpill" className="absolute inset-0 rounded-lg bg-loc"
-                      transition={{ type: "spring", stiffness: 420, damping: 34 }} />
-                  )}
-                  <BarChart3 className="relative h-3.5 w-3.5" />
-                  <span className="relative">Sales</span>
-                </button>
-                <button onClick={() => setView("classes")}
-                  className={cn("relative flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
-                    view === "classes" ? "text-white" : "text-lo hover:text-mid")}>
-                  {view === "classes" && (
-                    <motion.span layoutId="viewpill" className="absolute inset-0 rounded-lg bg-loc"
-                      transition={{ type: "spring", stiffness: 420, damping: 34 }} />
-                  )}
-                  <Dumbbell className="relative h-3.5 w-3.5" />
-                  <span className="relative">Classes</span>
-                </button>
+              <div className="no-scrollbar mr-1 flex max-w-[72vw] overflow-x-auto rounded-xl border border-line bg-surface2 p-1">
+                {VIEW_TABS.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => setView(item.id)} className={cn("relative flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors", view === item.id ? "text-white" : "text-lo hover:text-mid")}>
+                  {view === item.id && <motion.span layoutId="viewpill" className="absolute inset-0 rounded-lg bg-loc" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+                  <Icon className="relative h-3.5 w-3.5" /><span className="relative">{item.label}</span>
+                </button>; })}
               </div>
               <span className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10.5px] font-semibold",
@@ -312,8 +323,8 @@ export default function App() {
                     ? "border-pos/30 bg-pos-soft text-pos"
                     : "border-neg/30 bg-neg-soft text-neg"
               )}>
-                {loading || classLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (view === "sales" ? !error : !classError) ? <Wifi className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                {loading || classLoading ? "Syncing" : (view === "sales" ? !error : !classError) ? "Live sheet" : "Unavailable"}
+                {loading || classLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : !error ? <Wifi className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {loading || classLoading ? "Syncing" : !error ? "Live sheets" : "Unavailable"}
               </span>
               {lastSync && <span className="hidden num text-[10px] text-lo md:inline">{lastSync.toLocaleTimeString()}</span>}
               <Btn onClick={() => loadData()} title="Refresh data">
@@ -332,6 +343,7 @@ export default function App() {
           </div>
 
           {/* ── LOCATION TABS ── */}
+          {(view === "sales" || view === "classes") && (
           <div className="flex flex-wrap items-center gap-2.5 pb-4">
             <span className="mr-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-lo">
               Locations
@@ -380,9 +392,11 @@ export default function App() {
             )}
             <Tip text="Location tabs drive both Sales and Classes views. Select one to tint the entire page in that studio's colour, or several to combine them." />
           </div>
+          )}
         </div>
 
         {/* ── Section rail ── */}
+        {rail.length > 0 && (
         <div className="border-t border-line bg-surface2/70">
           <div className="no-scrollbar mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-8 lg:px-12">
             {rail.map((s) => {
@@ -405,6 +419,7 @@ export default function App() {
             })}
           </div>
         </div>
+        )}
       </header>
 
       {/* ══════════ MAIN ══════════ */}
@@ -517,7 +532,7 @@ export default function App() {
               <AdvancedLabsSection sales={current} sessions={sessions} dark={dark} />
             </section>
           </>
-        ) : (
+        ) : view === "classes" ? (
           <>
             {classLoading && !sessions.length ? (
               <DashboardLoader label="Syncing class intelligence" />
@@ -534,6 +549,20 @@ export default function App() {
               />
             )}
           </>
+        ) : loading ? (
+          <DashboardLoader label={`Syncing ${activeView.label.toLowerCase()} intelligence`} />
+        ) : error ? (
+          <LoadError title={`${activeView.label} data is unavailable`} message={error} onRetry={() => loadData()} />
+        ) : view === "teachers" ? (
+          <TeacherPerformanceSection payroll={payroll} sessions={sessions} members={members} />
+        ) : view === "late" ? (
+          <OperationalFeed title="Late Cancellation Intelligence" description="Every late-cancelled booking, separated from class-performance analysis." feed={bookings} filterHeader="Late Cancelled" />
+        ) : view === "bookings" ? (
+          <OperationalFeed title="Bookings Intelligence" description="Member-level booking, attendance, cancellation and session demand records." feed={bookings} />
+        ) : view === "leads" ? (
+          <OperationalFeed title="Leads & Funnel Performance" description="Lead source, stage, trial, conversion, associate and retention outcomes." feed={leads} />
+        ) : (
+          <OperationalFeed title="New Client Conversion & Retention" description="Newcomer journeys from first visit through conversion, purchase and retention." feed={members} />
         )}
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-5 text-[10.5px] text-lo">
@@ -549,6 +578,12 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+function OperationalFeed({ title, description, feed, filterHeader }: { title: string; description: string; feed: FlexTable; filterHeader?: string }) {
+  const visibleRows = filterHeader ? feed.rows.filter((row) => /^(true|yes|1)$/i.test(row[filterHeader] || "")) : feed.rows;
+  const headers = feed.headers.slice(0, 12);
+  return <div className="space-y-6"><SectionHeader index={1} title={title} description={description} meta={<span className="source-badge"><span className="source-dot" />{intFmt(visibleRows.length)} live records</span>} /><Panel title="Live source records" subtitle="Use the dedicated filters and analytics controls as this workspace evolves."><div className="overflow-auto"><table className="tbl w-full min-w-[1100px] text-[11px]"><thead className="tbl-head"><tr>{headers.map((header) => <th key={header} className="h-10 whitespace-nowrap px-3 text-left">{header}</th>)}</tr></thead><tbody>{visibleRows.slice(0, 100).map((row, index) => <tr key={index} className="tbl-row">{headers.map((header) => <td key={header} className="h-10 max-h-10 truncate px-3 text-mid" title={row[header]}>{row[header] || "—"}</td>)}</tr>)}</tbody></table></div></Panel></div>;
 }
 
 function DashboardLoader({ label }: { label: string }) {

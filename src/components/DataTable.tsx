@@ -68,7 +68,7 @@ export function DataTable<T>({
   }, [filtered, sort, cols]);
 
   const visible = sorted.slice(0, limit);
-  const pad = dense ? "px-3 py-2" : "px-4 py-3";
+  const pad = dense ? "h-10 max-h-10 px-3 py-0" : "h-10 max-h-10 px-4 py-0";
   const openCount = Object.values(open).filter(Boolean).length;
 
   const ranges = useMemo(() => {
@@ -133,7 +133,7 @@ export function DataTable<T>({
                       : { key: c.key, dir: "desc" })}
                     className={cn(
                       "group cursor-pointer select-none whitespace-nowrap transition-colors",
-                      dense ? "px-3 py-2.5" : "px-4 py-3",
+                      dense ? "h-10 px-3 py-0" : "h-10 px-4 py-0",
                       right ? "text-right" : "text-left",
                       active ? "!text-hi" : "hover:!text-mid"
                     )}
