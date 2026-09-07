@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown, CornerDownRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown, CornerDownRight, Eye } from "lucide-react";
 import { cn } from "../utils/cn";
 import { Tip, TableToolbar, ShareBar } from "./ui";
 import { downloadCsv } from "../lib/format";
@@ -70,6 +70,8 @@ export function DataTable<T>({
   const visible = sorted.slice(0, limit);
   const pad = dense ? "h-10 max-h-10 px-3 py-0" : "h-10 max-h-10 px-4 py-0";
   const openCount = Object.values(open).filter(Boolean).length;
+  const extraCols = (expand ? 1 : 0) + (onRowClick ? 1 : 0);
+  const totalCols = cols.length + extraCols;
 
   const ranges = useMemo(() => {
     const m: Record<string, { min: number; max: number }> = {};
@@ -151,6 +153,7 @@ export function DataTable<T>({
                   </th>
                 );
               })}
+              {onRowClick && <th className={dense ? "h-10 w-8 px-3 py-0" : "h-10 w-8 px-4 py-0"} />}
             </tr>
           </thead>
           <tbody>
@@ -163,7 +166,12 @@ export function DataTable<T>({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.2, delay: Math.min(ri * 0.01, 0.2) }}
-                    className={cn("tbl-row", isOpen && "tbl-row-open", (expand || onRowClick) && "cursor-pointer")}
+                    className={cn(
+                      "tbl-row",
+                      isOpen && "tbl-row-open",
+                      onRowClick && "tbl-row-clickable",
+                      !onRowClick && expand && "cursor-pointer"
+                    )}
                     onClick={() => { if (expand) setOpen((o) => ({ ...o, [k]: !o[k] })); onRowClick?.(r); }}
                   >
                     {expand && (
@@ -199,11 +207,18 @@ export function DataTable<T>({
                         </td>
                       );
                     })}
+                    {onRowClick && (
+                      <td className={cn(pad, "w-8 text-right")}>
+                        <span className="row-view-icon inline-flex items-center justify-center rounded-md p-1 text-lo opacity-0 transition-opacity">
+                          <Eye className="h-3.5 w-3.5" />
+                        </span>
+                      </td>
+                    )}
                   </motion.tr>
                   <AnimatePresence initial={false}>
                     {isOpen && expand && (
                       <tr>
-                        <td colSpan={cols.length + 1} className="p-0">
+                        <td colSpan={totalCols} className="p-0">
                           <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
@@ -228,7 +243,7 @@ export function DataTable<T>({
             })}
             {!visible.length && (
               <tr>
-                <td colSpan={cols.length + 1} className="px-4 py-12 text-center text-xs text-lo">
+                <td colSpan={totalCols} className="px-4 py-12 text-center text-xs text-lo">
                   No rows match the current filters.
                 </td>
               </tr>
@@ -251,6 +266,7 @@ export function DataTable<T>({
                   </td>
                 );
               })}
+              {onRowClick && <td className={pad} />}
             </tr>
           </tfoot>
         </table>

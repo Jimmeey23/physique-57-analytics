@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarClock, AlertTriangle, User,
   Ban, Activity,
 } from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
-import { intFmt, pct } from "../../lib/format";
+import { intFmt, pct, compact } from "../../lib/format";
 import { cn } from "../../utils/cn";
 import { MetricCard } from "../MetricCard";
 import type { KPI } from "../../lib/analytics";
 import { Panel, SectionHeader, Btn } from "../ui";
 import { DataTable, type Col } from "../DataTable";
 import { TrendChart, Donut, RankBars } from "../Charts";
+import { DetailModal, ModalStat, ModalSection } from "../DetailModal";
 
 interface BookingRecord {
   memberId: string;
@@ -96,6 +97,7 @@ function parseBookings(data: FlexTable): BookingRecord[] {
 export function LateCancellationSection({ bookings, kpis }: { bookings: FlexTable; kpis: KPI[] }) {
   const records = useMemo(() => parseBookings(bookings), [bookings]);
   const [tab, setTab] = useState<"late" | "all_cancelled" | "noshow">("late");
+  const [selected, setSelected] = useState<BookingRecord | null>(null);
 
   const lateCancelled = useMemo(() => records.filter((r) => r.lateCancelled), [records]);
   const allCancelled = useMemo(() => records.filter((r) => r.cancelled), [records]);
@@ -327,7 +329,7 @@ export function LateCancellationSection({ bookings, kpis }: { bookings: FlexTabl
       {/* Late cancel records table */}
       <Panel
         title="Late Cancel Records"
-        subtitle={`${intFmt(displayed.length)} records`}
+        subtitle={`${intFmt(displayed.length)} records · click a row for details`}
         right={
           <div className="flex items-center gap-1.5">
             <Btn size="xs" active={tab === "late"} onClick={() => setTab("late")}>Late Cancels</Btn>
@@ -343,8 +345,18 @@ export function LateCancellationSection({ bookings, kpis }: { bookings: FlexTabl
           defaultSort="sessionDate"
           initialLimit={25}
           csvName="late-cancellations"
+          onRowClick={setSelected}
         />
       </Panel>
+
+      <DetailModal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.customerName || "Record Details"}
+        subtitle={selected?.customerEmail}
+      >
+        {selected && <LateCancelDetail record={selected} />}
+      </DetailModal>
     </div>
   );
 }
@@ -414,4 +426,79 @@ function offenderColumns(): Col<{ name: string; count: number; email: string }>[
     },
     { key: "count", label: "Late Cancels", value: (r) => r.count, fmt: intFmt, heat: true },
   ];
+}
+
+function LateCancelDetail({ record: r }: { record: BookingRecord }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ModalStat
+          label="Late Cancel"
+          value={r.lateCancelled ? "Yes" : "No"}
+          accent={r.lateCancelled ? "warn" : undefined}
+        />
+        <ModalStat
+          label="Cancelled"
+          value={r.cancelled ? "Yes" : "No"}
+          accent={r.cancelled ? "neg" : undefined}
+        />
+        <ModalStat
+          label="No Show"
+          value={r.noShow ? "Yes" : "No"}
+          accent={r.noShow ? "neg" : undefined}
+        />
+        <ModalStat label="Sale Value" value={compact(r.saleValue)} />
+        <ModalStat label="Class" value={r.cleanedClass || "—"} accent="loc" />
+        <ModalStat label="Teacher" value={r.teacherName || "—"} />
+        <ModalStat label="Session Date" value={r.sessionDate || "—"} />
+        <ModalStat label="Time Slot" value={r.timeSlot || "—"} />
+        <ModalStat label="Location" value={r.location || "—"} />
+        <ModalStat label="Day of Week" value={r.dayOfWeek || "—"} />
+        <ModalStat label="Payment Method" value={r.paymentMethod || "—"} />
+        <ModalStat label="Membership" value={r.membershipUsed || "—"} />
+      </div>
+
+      <ModalSection title="Cancellation Timeline">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-line bg-surface2 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-lo">Sale Date</p>
+            <p className="mt-1 font-display text-base font-bold text-hi">{r.saleDate || "—"}</p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface2 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-lo">Session Date</p>
+            <p className="mt-1 font-display text-base font-bold text-hi">{r.sessionDate || "—"}</p>
+          </div>
+        </div>
+      </ModalSection>
+
+      <ModalSection title="Member & Sale Info">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Customer Name</span>
+            <span className="text-[11px] font-medium text-hi">{r.customerName || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Email</span>
+            <span className="text-[11px] font-medium text-hi">{r.customerEmail || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Sale Item</span>
+            <span className="text-[11px] font-medium text-hi">{r.saleItem || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Sold By</span>
+            <span className="text-[11px] font-medium text-hi">{r.soldBy || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Member ID</span>
+            <span className="text-[11px] font-medium text-hi font-mono">{r.memberId || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">New Member</span>
+            <span className="text-[11px] font-medium text-hi">{r.isNew || "—"}</span>
+          </div>
+        </div>
+      </ModalSection>
+    </div>
+  );
 }

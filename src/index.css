@@ -239,7 +239,7 @@ body {
   border-right: 0 !important;
   border-left: 0 !important;
 }
-.tbl-row { height: 40px; max-height: 40px; transition: background-color 0.12s ease; }
+.tbl-row { height: 40px; max-height: 40px; transition: all 0.15s ease; position: relative; }
 .tbl-row > td {
   height: 40px;
   max-height: 40px;
@@ -247,11 +247,18 @@ body {
   padding-bottom: 0 !important;
   overflow: hidden;
 }
-.tbl-row:hover { background: rgb(var(--surface-2)); }
+.tbl-row:nth-child(even) { background: rgb(var(--surface-2) / 0.35); }
+.tbl-row:hover { background: rgb(var(--surface-2)); transform: scale(1.0002); z-index: 1; }
 .tbl-row:hover td { background: transparent !important; }
+.tbl-row-clickable { cursor: pointer; }
+.tbl-row-clickable:hover { background: rgb(var(--loc) / 0.055); }
+.tbl-row-clickable:hover td:first-child { box-shadow: inset 3px 0 0 rgb(var(--loc)); }
+.tbl-row-clickable:active { transform: scale(0.9998); }
 .tbl-row-open { background: rgb(var(--loc) / 0.035); }
 .tbl-row-open td:first-child { box-shadow: inset 3px 0 0 rgb(var(--loc)); }
-.tbl-row td { border-bottom: 1px solid rgb(var(--line) / 0.7); }
+.tbl-row td { border-bottom: 1px solid rgb(var(--line) / 0.5); transition: border-color 0.12s ease; }
+.tbl-row:hover td { border-bottom-color: rgb(var(--line-strong) / 0.6); }
+.tbl-row-clickable:hover .row-view-icon { opacity: 0.7; }
 .tbl-foot td {
   height: 40px;
   max-height: 40px;

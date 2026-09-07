@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Receipt, Calendar, Users,
   Star, BarChart3, TrendingDown,
 } from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
-import { compact, intFmt, pct } from "../../lib/format";
+import { compact, intFmt, pct, dec } from "../../lib/format";
 import { cn } from "../../utils/cn";
 import { MetricCard } from "../MetricCard";
 import type { KPI } from "../../lib/analytics";
 import { Panel, SectionHeader, Btn } from "../ui";
 import { DataTable, type Col } from "../DataTable";
 import { TrendChart, Donut, RankBars } from "../Charts";
+import { DetailModal, ModalStat, ModalSection } from "../DetailModal";
 
 interface BookingRecord {
   memberId: string;
@@ -96,6 +97,7 @@ function parseBookings(data: FlexTable): BookingRecord[] {
 export function BookingsSection({ bookings, kpis }: { bookings: FlexTable; kpis: KPI[] }) {
   const records = useMemo(() => parseBookings(bookings), [bookings]);
   const [tab, setTab] = useState<"all" | "confirmed" | "cancelled" | "new">("all");
+  const [selected, setSelected] = useState<BookingRecord | null>(null);
 
   const stats = useMemo(() => {
     const total = records.length;
@@ -288,7 +290,7 @@ export function BookingsSection({ bookings, kpis }: { bookings: FlexTable; kpis:
       {/* Records table */}
       <Panel
         title="Booking Records"
-        subtitle={`${intFmt(filtered.length)} records`}
+        subtitle={`${intFmt(filtered.length)} records · click a row for details`}
         right={
           <div className="flex items-center gap-1.5">
             {(["all", "confirmed", "cancelled", "new"] as const).map((t) => (
@@ -306,8 +308,18 @@ export function BookingsSection({ bookings, kpis }: { bookings: FlexTable; kpis:
           defaultSort="sessionDate"
           initialLimit={25}
           csvName="bookings"
+          onRowClick={setSelected}
         />
       </Panel>
+
+      <DetailModal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.customerName || "Booking Details"}
+        subtitle={selected?.customerEmail}
+      >
+        {selected && <BookingDetail record={selected} />}
+      </DetailModal>
     </div>
   );
 }
@@ -350,4 +362,68 @@ function classColumns(): Col<{ name: string; total: number; confirmed: number; c
     { key: "cancelled", label: "Cancelled", value: (r) => r.cancelled, fmt: intFmt },
     { key: "showRate", label: "Show Rate", value: (r) => r.showRate, fmt: (n) => pct(n, 1) },
   ];
+}
+
+function BookingDetail({ record: r }: { record: BookingRecord }) {
+  const statusLabel = r.noShow ? "No Show" : r.lateCancelled ? "Late Cancelled" : r.cancelled ? "Cancelled" : "Confirmed";
+  const statusAccent = r.noShow || r.cancelled ? "neg" as const : r.lateCancelled ? "warn" as const : "pos" as const;
+
+  // Lead time
+  let leadDays: number | null = null;
+  if (r.sessionDateObj && r.saleDateObj) {
+    leadDays = Math.round((r.sessionDateObj.getTime() - r.saleDateObj.getTime()) / 86400000);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ModalStat label="Status" value={statusLabel} accent={statusAccent} />
+        <ModalStat label="Sale Value" value={compact(r.saleValue)} />
+        <ModalStat label="Class" value={r.cleanedClass || "—"} accent="loc" />
+        <ModalStat label="Teacher" value={r.teacherName || "—"} />
+        <ModalStat label="Session Date" value={r.sessionDate || "—"} />
+        <ModalStat label="Time Slot" value={r.timeSlot || "—"} />
+        <ModalStat label="Location" value={r.location || "—"} />
+        <ModalStat label="Day of Week" value={r.dayOfWeek || "—"} />
+        <ModalStat label="Payment Method" value={r.paymentMethod || "—"} />
+        <ModalStat label="Membership Used" value={r.membershipUsed || "—"} />
+        <ModalStat label="New Member" value={r.isNew || "—"} />
+        {leadDays !== null && <ModalStat label="Lead Time" value={`${leadDays} day${leadDays !== 1 ? "s" : ""}`} />}
+      </div>
+
+      <ModalSection title="Booking Timeline">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-line bg-surface2 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-lo">Sale Date</p>
+            <p className="mt-1 font-display text-base font-bold text-hi">{r.saleDate || "—"}</p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface2 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-lo">Session Date</p>
+            <p className="mt-1 font-display text-base font-bold text-hi">{r.sessionDate || "—"}</p>
+          </div>
+        </div>
+      </ModalSection>
+
+      <ModalSection title="Sale Details">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Sale Item</span>
+            <span className="text-[11px] font-medium text-hi">{r.saleItem || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Sale ID</span>
+            <span className="text-[11px] font-medium text-hi font-mono">{r.saleId || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Sold By</span>
+            <span className="text-[11px] font-medium text-hi">{r.soldBy || "—"}</span>
+          </div>
+          <div className="flex justify-between border-b border-line pb-2">
+            <span className="text-[11px] text-lo">Member ID</span>
+            <span className="text-[11px] font-medium text-hi font-mono">{r.memberId || "—"}</span>
+          </div>
+        </div>
+      </ModalSection>
+    </div>
+  );
 }
