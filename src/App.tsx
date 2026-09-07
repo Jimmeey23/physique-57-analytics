@@ -109,6 +109,8 @@ export default function App() {
   const [filters, setFilters] = useState<FilterState>(emptyFilters);
   const [classFilters, setClassFilters] = useState<ClassFilterState>(emptyClassFilters);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoReason, setDemoReason] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>("overview");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -143,6 +145,8 @@ export default function App() {
       });
       if (!parsedSessions.length) setClassError("The sessions sheet returned no usable rows.");
       setLastSync(new Date(payload.syncedAt));
+      setDemoMode(!!payload._demo);
+      setDemoReason(payload._demoReason || null);
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       const message = e instanceof Error ? e.message : String(e);
@@ -157,6 +161,8 @@ export default function App() {
       setLapsed({ headers: [], rows: [] });
       setError(message);
       setClassError(message);
+      setDemoMode(false);
+      setDemoReason(null);
     } finally {
       setLoading(false);
       setClassLoading(false);
@@ -350,12 +356,14 @@ export default function App() {
                 "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10.5px] font-semibold",
                 loading || classLoading
                   ? "border-line bg-surface2 text-lo"
-                  : (view === "sales" ? !error : !classError)
-                    ? "border-pos/30 bg-pos-soft text-pos"
-                    : "border-neg/30 bg-neg-soft text-neg"
+                  : demoMode
+                    ? "border-amber-300/40 bg-amber-50 text-amber-700 dark:border-amber-700/40 dark:bg-amber-950/40 dark:text-amber-400"
+                    : (view === "sales" ? !error : !classError)
+                      ? "border-pos/30 bg-pos-soft text-pos"
+                      : "border-neg/30 bg-neg-soft text-neg"
               )}>
-                {loading || classLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : !error ? <Wifi className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                {loading || classLoading ? "Syncing" : !error ? "Live sheets" : "Unavailable"}
+                {loading || classLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : demoMode ? <Sparkles className="h-3.5 w-3.5" /> : !error ? <Wifi className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {loading || classLoading ? "Syncing" : demoMode ? "Demo data" : !error ? "Live sheets" : "Unavailable"}
               </span>
               {lastSync && <span className="hidden num text-[10px] text-lo md:inline">{lastSync.toLocaleTimeString()}</span>}
               <Btn onClick={() => loadData()} title="Refresh data">
@@ -457,6 +465,38 @@ export default function App() {
 
       {/* ══════════ MAIN ══════════ */}
       <main className="mx-auto max-w-[1600px] space-y-16 px-8 py-10 lg:px-12">
+        {demoMode && !loading && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-4 shadow-sm dark:border-amber-700/30 dark:from-amber-950/40 dark:to-orange-950/40"
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
+                <Sparkles className="h-4.5 w-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-display text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    Demo Mode — Sample Data
+                  </h3>
+                  <span className="rounded-md bg-amber-200/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-800/40 dark:text-amber-400">
+                    Not live
+                  </span>
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-amber-700/80 dark:text-amber-400/70">
+                  {demoReason
+                    ? <>Live data unavailable — {demoReason}. Showing sample data instead. You can configure credentials in{" "}</>
+                    : <>Showing sample data to preview the dashboard. Connect your Google Sheets in{" "}</>}
+                  <button onClick={() => setSettingsOpen(true)} className="font-semibold underline underline-offset-2 transition-colors hover:text-amber-900 dark:hover:text-amber-200">
+                    Settings
+                  </button>{" "}
+                  to load live data.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
         <FiltersBar rows={rows} value={filters} onChange={setFilters} />
 
         {view === "classes" && (
@@ -609,7 +649,11 @@ export default function App() {
               : `${intFmt(classRows.length)} sessions in scope · ${compact(classRev)} revenue`}
           </span>
           <span className="num">
-            {view === "sales" ? "Server-managed Google Sheets feed" : `${classMeta.sessionsSheet || "sessions"} · ${classMeta.recurringSheet || "recurring"} · ${classMeta.teacherSheet || "teacher recurring"}`}
+            {demoMode
+              ? "Demo data · Configure Google Sheets in Settings for live data"
+              : view === "sales"
+                ? "Server-managed Google Sheets feed"
+                : `${classMeta.sessionsSheet || "sessions"} · ${classMeta.recurringSheet || "recurring"} · ${classMeta.teacherSheet || "teacher recurring"}`}
           </span>
         </footer>
       </main>

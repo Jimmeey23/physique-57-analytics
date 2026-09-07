@@ -23,6 +23,8 @@ export interface DashboardPayload {
     checkinsSheet: string;
   };
   syncedAt: string;
+  _demo?: boolean;
+  _demoReason?: string;
 }
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardPayload> {

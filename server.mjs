@@ -3,6 +3,7 @@ import express from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { generateDemoData } from "./demo-data.mjs";
 
 const app = express();
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -311,6 +312,15 @@ app.post("/api/settings/test", async (_request, response) => {
 // ── Dashboard ──
 app.get("/api/dashboard", async (_request, response) => {
   try {
+    // If credentials aren't configured, return demo data
+    const hasCredentials = Boolean(config.clientId && config.clientSecret && config.refreshToken);
+    if (!hasCredentials) {
+      console.log("Google credentials not configured — serving demo data");
+      const demoData = generateDemoData();
+      response.set("Cache-Control", "no-store").json(demoData);
+      return;
+    }
+
     const [sales, sessions, recurring, teacherRecurring, payroll, members, bookings, leads, lapsed, checkins] = await Promise.all([
       sheetValues(config.salesSpreadsheetId, config.salesSheetName),
       firstAvailable(config.classSpreadsheetId, classSheets.sessions, true),
@@ -338,7 +348,11 @@ app.get("/api/dashboard", async (_request, response) => {
     });
   } catch (error) {
     console.error("Dashboard sync failed:", error.message);
-    response.status(502).json({ error: error.message || "Unable to load Google Sheets data." });
+    // Fall back to demo data when the API call fails
+    console.log("Falling back to demo data due to API error");
+    const demoData = generateDemoData();
+    demoData._demoReason = "Could not connect to Google Sheets: " + (error.message || "Unknown error");
+    response.set("Cache-Control", "no-store").json(demoData);
   }
 });
 
