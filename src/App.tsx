@@ -9,6 +9,7 @@ import { cn } from "./utils/cn";
 import { parseSheet, type SaleRow } from "./lib/types";
 import { fetchDashboard } from "./lib/google";
 import { applyFilters, applyFiltersIgnoringDate } from "./lib/filter";
+import { applyGlobalFiltersToFlexTable } from "./lib/globalFilter";
 import { computeKPIs, computeNewClientKPIs, computeLapsedKPIs, computeLateCancelKPIs, computeBookingsKPIs, computeFunnelKPIs, monthlySeries, aggregate, groupBy, isGood, type KPI } from "./lib/analytics";
 import {
   parseFlexible, parseSessions, sessionInLocations, type FlexTable, type SessionRow,
@@ -173,13 +174,6 @@ export default function App() {
     return t.length ? new Date(Math.max(...t)) : new Date();
   }, [rows]);
 
-  /* KPIs for new sections */
-  const newClientKpis = useMemo(() => computeNewClientKPIs(members), [members]);
-  const lapsedKpis = useMemo(() => computeLapsedKPIs(lapsed), [lapsed]);
-  const lateCancelKpis = useMemo(() => computeLateCancelKPIs(bookings), [bookings]);
-  const bookingsKpis = useMemo(() => computeBookingsKPIs(bookings), [bookings]);
-  const funnelKpis = useMemo(() => computeFunnelKPIs(leads), [leads]);
-
   /* union of sales + session locations for shared tabs */
   const locations = useMemo(() => {
     const rev = new Map<string, number>();
@@ -228,6 +222,20 @@ export default function App() {
   const timeSeries = useMemo(() => monthlySeries(timeRows), [timeRows]);
   const total = useMemo(() => aggregate(current, "all"), [current]);
   const cats = useMemo(() => groupBy(current.filter(isGood), (r) => r.category), [current]);
+
+  // Apply global filters to FlexTable data
+  const filteredMembers = useMemo(() => applyGlobalFiltersToFlexTable(members, filters, maxDate), [members, filters, maxDate]);
+  const filteredLapsed = useMemo(() => applyGlobalFiltersToFlexTable(lapsed, filters, maxDate), [lapsed, filters, maxDate]);
+  const filteredBookings = useMemo(() => applyGlobalFiltersToFlexTable(bookings, filters, maxDate), [bookings, filters, maxDate]);
+  const filteredLeads = useMemo(() => applyGlobalFiltersToFlexTable(leads, filters, maxDate), [leads, filters, maxDate]);
+  const filteredPayroll = useMemo(() => applyGlobalFiltersToFlexTable(payroll, filters, maxDate), [payroll, filters, maxDate]);
+
+  // KPIs for new sections (using filtered data)
+  const newClientKpis = useMemo(() => computeNewClientKPIs(filteredMembers), [filteredMembers]);
+  const lapsedKpis = useMemo(() => computeLapsedKPIs(filteredLapsed), [filteredLapsed]);
+  const lateCancelKpis = useMemo(() => computeLateCancelKPIs(filteredBookings), [filteredBookings]);
+  const bookingsKpis = useMemo(() => computeBookingsKPIs(filteredBookings), [filteredBookings]);
+  const funnelKpis = useMemo(() => computeFunnelKPIs(filteredLeads), [filteredLeads]);
 
   const sectionKpis = useMemo(() => {
     const m: Record<string, KPI[]> = {};
@@ -449,7 +457,7 @@ export default function App() {
 
       {/* ══════════ MAIN ══════════ */}
       <main className="mx-auto max-w-[1600px] space-y-16 px-8 py-10 lg:px-12">
-        {view === "sales" && <FiltersBar rows={rows} value={filters} onChange={setFilters} />}
+        <FiltersBar rows={rows} value={filters} onChange={setFilters} />
 
         {view === "classes" && (
           <div className="space-y-4">
@@ -579,19 +587,19 @@ export default function App() {
         ) : error ? (
           <LoadError title={`${activeView.label} data is unavailable`} message={error} onRetry={() => loadData()} onOpenSettings={() => setSettingsOpen(true)} />
         ) : view === "teachers" ? (
-          <TeacherPerformanceSection payroll={payroll} sessions={sessions} members={members} />
+          <TeacherPerformanceSection payroll={filteredPayroll} sessions={sessions} members={filteredMembers} />
         ) : view === "newclients" ? (
-          <NewClientsSection members={members} kpis={newClientKpis} />
+          <NewClientsSection members={filteredMembers} kpis={newClientKpis} />
         ) : view === "lapsed" ? (
-          <LapsedSection lapsed={lapsed} kpis={lapsedKpis} />
+          <LapsedSection lapsed={filteredLapsed} kpis={lapsedKpis} />
         ) : view === "late" ? (
-          <LateCancellationSection bookings={bookings} kpis={lateCancelKpis} />
+          <LateCancellationSection bookings={filteredBookings} kpis={lateCancelKpis} />
         ) : view === "bookings" ? (
-          <BookingsSection bookings={bookings} kpis={bookingsKpis} />
+          <BookingsSection bookings={filteredBookings} kpis={bookingsKpis} />
         ) : view === "leads" ? (
-          <FunnelSection leads={leads} kpis={funnelKpis} />
+          <FunnelSection leads={filteredLeads} kpis={funnelKpis} />
         ) : (
-          <NewClientsSection members={members} kpis={newClientKpis} />
+          <NewClientsSection members={filteredMembers} kpis={newClientKpis} />
         )}
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-5 text-[10.5px] text-lo">

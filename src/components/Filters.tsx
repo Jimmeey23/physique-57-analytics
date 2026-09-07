@@ -34,7 +34,7 @@ export interface FilterState {
 
 export const emptyFilters: FilterState = {
   locations: [],
-  preset: "all",
+  preset: "lastmonth",
   from: "",
   to: "",
   categories: [],

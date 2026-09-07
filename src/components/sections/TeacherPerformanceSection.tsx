@@ -180,6 +180,61 @@ function columns(): Col<TeacherTotal>[] {
   ];
 }
 
+function revenueColumns(): Col<TeacherTotal>[] {
+  return [
+    { key: "rank", label: "Rank", value: (r) => r.rank, width: "64px", render: (r) => <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-bold", r.rank === 1 ? "bg-amber-100 text-amber-700" : r.rank <= 3 ? "bg-loc-soft text-loc" : "bg-surface3 text-lo")}>#{r.rank}</span> },
+    { key: "name", label: "Trainer", align: "left", value: (r) => r.name, totalMode: "none", width: "190px", render: (r) => <div className="flex items-center gap-2"><span className="trainer-avatar">{r.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</span><span><b className="block text-hi">{r.name}</b><small className="text-[9.5px] text-lo">{r.locations.slice(0, 2).join(" · ")}</small></span></div> },
+    { key: "revenue", label: "Revenue", value: (r) => r.revenue, fmt: compact, heat: true },
+    { key: "sessions", label: "Classes", value: (r) => r.sessions, fmt: intFmt },
+    { key: "revPerSession", label: "Rev/Class", value: (r) => r.revPerSession, fmt: compact, totalMode: "avg" },
+    { key: "checkedIn", label: "Attendance", value: (r) => r.checkedIn, fmt: intFmt },
+  ];
+}
+
+function sessionsColumns(): Col<TeacherTotal>[] {
+  return [
+    { key: "rank", label: "Rank", value: (r) => r.rank, width: "64px", render: (r) => <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-bold", r.rank === 1 ? "bg-amber-100 text-amber-700" : r.rank <= 3 ? "bg-loc-soft text-loc" : "bg-surface3 text-lo")}>#{r.rank}</span> },
+    { key: "name", label: "Trainer", align: "left", value: (r) => r.name, totalMode: "none", width: "190px", render: (r) => <div className="flex items-center gap-2"><span className="trainer-avatar">{r.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</span><span><b className="block text-hi">{r.name}</b><small className="text-[9.5px] text-lo">{r.locations.slice(0, 2).join(" · ")}</small></span></div> },
+    { key: "sessions", label: "Classes", value: (r) => r.sessions, fmt: intFmt, heat: true },
+    { key: "checkedIn", label: "Total Attendance", value: (r) => r.checkedIn, fmt: intFmt },
+    { key: "classAvg", label: "Avg Class Size", value: (r) => r.classAvg, fmt: (n) => dec(n, 1), totalMode: "avg" },
+    { key: "empty", label: "Empty Classes", value: (r) => r.empty, fmt: intFmt },
+  ];
+}
+
+function conversionColumns(): Col<TeacherTotal>[] {
+  return [
+    { key: "rank", label: "Rank", value: (r) => r.rank, width: "64px", render: (r) => <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-bold", r.rank === 1 ? "bg-amber-100 text-amber-700" : r.rank <= 3 ? "bg-loc-soft text-loc" : "bg-surface3 text-lo")}>#{r.rank}</span> },
+    { key: "name", label: "Trainer", align: "left", value: (r) => r.name, totalMode: "none", width: "190px", render: (r) => <div className="flex items-center gap-2"><span className="trainer-avatar">{r.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</span><span><b className="block text-hi">{r.name}</b><small className="text-[9.5px] text-lo">{r.locations.slice(0, 2).join(" · ")}</small></span></div> },
+    { key: "conversionRate", label: "Conversion Rate", value: (r) => r.conversionRate, totalMode: "avg", render: (r) => badge(r.conversionRate, 35, 20) },
+    { key: "newMembers", label: "New Members", value: (r) => r.newMembers, fmt: intFmt },
+    { key: "converted", label: "Converted", value: (r) => r.converted, fmt: intFmt, heat: true },
+    { key: "retained", label: "Retained", value: (r) => r.retained, fmt: intFmt },
+  ];
+}
+
+function retentionColumns(): Col<TeacherTotal>[] {
+  return [
+    { key: "rank", label: "Rank", value: (r) => r.rank, width: "64px", render: (r) => <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-bold", r.rank === 1 ? "bg-amber-100 text-amber-700" : r.rank <= 3 ? "bg-loc-soft text-loc" : "bg-surface3 text-lo")}>#{r.rank}</span> },
+    { key: "name", label: "Trainer", align: "left", value: (r) => r.name, totalMode: "none", width: "190px", render: (r) => <div className="flex items-center gap-2"><span className="trainer-avatar">{r.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</span><span><b className="block text-hi">{r.name}</b><small className="text-[9.5px] text-lo">{r.locations.slice(0, 2).join(" · ")}</small></span></div> },
+    { key: "retentionRate", label: "Retention Rate", value: (r) => r.retentionRate, totalMode: "avg", render: (r) => badge(r.retentionRate, 45, 25) },
+    { key: "newMembers", label: "New Members", value: (r) => r.newMembers, fmt: intFmt },
+    { key: "retained", label: "Retained", value: (r) => r.retained, fmt: intFmt, heat: true },
+    { key: "converted", label: "Converted", value: (r) => r.converted, fmt: intFmt },
+  ];
+}
+
+function classAvgColumns(): Col<TeacherTotal>[] {
+  return [
+    { key: "rank", label: "Rank", value: (r) => r.rank, width: "64px", render: (r) => <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-bold", r.rank === 1 ? "bg-amber-100 text-amber-700" : r.rank <= 3 ? "bg-loc-soft text-loc" : "bg-surface3 text-lo")}>#{r.rank}</span> },
+    { key: "name", label: "Trainer", align: "left", value: (r) => r.name, totalMode: "none", width: "190px", render: (r) => <div className="flex items-center gap-2"><span className="trainer-avatar">{r.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</span><span><b className="block text-hi">{r.name}</b><small className="text-[9.5px] text-lo">{r.locations.slice(0, 2).join(" · ")}</small></span></div> },
+    { key: "classAvg", label: "Avg Class Size", value: (r) => r.classAvg, fmt: (n) => dec(n, 1), totalMode: "avg", heat: true },
+    { key: "sessions", label: "Classes", value: (r) => r.sessions, fmt: intFmt },
+    { key: "checkedIn", label: "Total Attendance", value: (r) => r.checkedIn, fmt: intFmt },
+    { key: "emptyRate", label: "Empty Rate", value: (r) => r.emptyRate, totalMode: "avg", render: (r) => badge(r.emptyRate, 5, 15, "% empty") },
+  ];
+}
+
 export function TeacherPerformanceSection({ payroll, sessions, members }: { payroll: FlexTable; sessions: SessionRow[]; members: FlexTable }) {
   const monthly = useMemo(() => buildTeacherData(payroll, sessions, members), [payroll, sessions, members]);
   const months = useMemo(() => [...new Set(monthly.map((item) => item.month))].sort().reverse(), [monthly]);
@@ -187,21 +242,102 @@ export function TeacherPerformanceSection({ payroll, sessions, members }: { payr
   const [selected, setSelected] = useState<TeacherTotal | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const teachers = useMemo(() => aggregateTeachers(monthly, month), [monthly, month]);
+  
+  // Calculate aggregate stats
   const totalRevenue = teachers.reduce((sum, item) => sum + item.revenue, 0);
-  const top = teachers[0];
+  const totalSessions = teachers.reduce((sum, item) => sum + item.sessions, 0);
+  const totalCheckedIn = teachers.reduce((sum, item) => sum + item.checkedIn, 0);
+  const totalNewMembers = teachers.reduce((sum, item) => sum + item.newMembers, 0);
+  const totalConverted = teachers.reduce((sum, item) => sum + item.converted, 0);
+  const totalRetained = teachers.reduce((sum, item) => sum + item.retained, 0);
+  const avgConversionRate = totalNewMembers > 0 ? (totalConverted / totalNewMembers) * 100 : 0;
+  const avgRetentionRate = totalNewMembers > 0 ? (totalRetained / totalNewMembers) * 100 : 0;
+  const avgClassSize = totalSessions > 0 ? totalCheckedIn / totalSessions : 0;
+  
+  // Rankings by different criteria
+  const byRevenue = useMemo(() => [...teachers].sort((a, b) => b.revenue - a.revenue), [teachers]);
+  const bySessions = useMemo(() => [...teachers].sort((a, b) => b.sessions - a.sessions), [teachers]);
+  const byConversion = useMemo(() => [...teachers].filter(t => t.newMembers > 0).sort((a, b) => b.conversionRate - a.conversionRate), [teachers]);
+  const byRetention = useMemo(() => [...teachers].filter(t => t.newMembers > 0).sort((a, b) => b.retentionRate - a.retentionRate), [teachers]);
+  const byClassAvg = useMemo(() => [...teachers].sort((a, b) => b.classAvg - a.classAvg), [teachers]);
+  
+  // MoM data for top performer
+  const topTeacher = byRevenue[0];
+  const topTeacherMoM = useMemo(() => {
+    if (!topTeacher) return [];
+    return topTeacher.months.map((item) => ({ label: monthLabel(item.month), revenue: item.revenue, sessions: item.sessions, checkedIn: item.checkedIn }));
+  }, [topTeacher]);
 
   return (
     <div className="space-y-8">
-      <SectionHeader index={1} title="Teacher Performance" description="Trainer-level commercial and member outcomes from payroll and bookings. This workspace is independent from class and slot performance." meta={<span className="source-badge"><span className="source-dot" />Payroll + bookings</span>} />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Summary icon={<Users />} label="Active trainers" value={intFmt(teachers.length)} tone="blue" />
-        <Summary icon={<BarChart3 />} label="Classes taught" value={intFmt(teachers.reduce((s, t) => s + t.sessions, 0))} tone="violet" />
-        <Summary icon={<TrendingUp />} label="Revenue generated" value={compact(totalRevenue)} tone="emerald" />
-        <Summary icon={<Award />} label="Revenue leader" value={top?.name || "—"} sub={top ? compact(top.revenue) : undefined} tone="amber" />
+      <SectionHeader index={1} title="Teacher Performance" description="Comprehensive trainer-level analytics: revenue generation, class performance, member conversion, retention outcomes, and month-on-month trends." meta={<span className="source-badge"><span className="source-dot" />Payroll + bookings + members</span>} />
+      
+      {/* KPI Cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+        <Summary icon={<Users />} label="Active Trainers" value={intFmt(teachers.length)} tone="blue" />
+        <Summary icon={<BarChart3 />} label="Total Classes" value={intFmt(totalSessions)} tone="violet" />
+        <Summary icon={<TrendingUp />} label="Total Revenue" value={compact(totalRevenue)} tone="emerald" />
+        <Summary icon={<Award />} label="Top Performer" value={topTeacher?.name || "—"} sub={topTeacher ? compact(topTeacher.revenue) : undefined} tone="amber" />
+        <Summary icon={<Users />} label="New Members" value={intFmt(totalNewMembers)} tone="teal" />
+        <Summary icon={<TrendingUp />} label="Avg Conversion" value={pct(avgConversionRate)} tone="rose" />
       </div>
-      <Panel title="Trainer rankings" subtitle={`${teachers.length} trainers · click a row for individual month-on-month performance`} right={<div className="flex items-center gap-2"><select value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 rounded-lg border border-line bg-surface2 px-3 text-[11px] font-medium text-hi"><option value="all">All months</option>{months.map((item) => <option key={item} value={item}>{monthLabel(item)}</option>)}</select><Btn active onClick={() => setCompareOpen(true)}><GitCompareArrows className="h-3.5 w-3.5" /> Compare trainers</Btn></div>}>
+
+      {/* MoM Performance Section */}
+      <SectionHeader index={2} title="Month-on-Month Performance" description="Track how teacher performance evolves over time. Click any trainer row to see detailed month-on-month trends." />
+      
+      <Panel title="All Trainers - Time Period Selection" subtitle={`Showing data for ${month === "all" ? "all months" : monthLabel(month)} · ${teachers.length} trainers`} right={
+        <div className="flex items-center gap-2">
+          <select value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 rounded-lg border border-line bg-surface2 px-3 text-[11px] font-medium text-hi">
+            <option value="all">All months</option>
+            {months.map((item) => <option key={item} value={item}>{monthLabel(item)}</option>)}
+          </select>
+          <Btn active onClick={() => setCompareOpen(true)}>
+            <GitCompareArrows className="h-3.5 w-3.5" /> Compare trainers
+          </Btn>
+        </div>
+      }>
         <DataTable cols={columns()} rows={teachers} rowKey={(r) => r.name} defaultSort="revenue" initialLimit={20} csvName="teacher-performance" onRowClick={setSelected} />
       </Panel>
+
+      {/* Rankings by Revenue */}
+      <SectionHeader index={3} title="Revenue Rankings" description="Trainers ranked by total revenue generated. Revenue is the primary commercial metric reflecting both class volume and pricing power." />
+      <Panel title="Revenue Leaderboard" subtitle="Click any row to view detailed performance breakdown">
+        <DataTable cols={revenueColumns()} rows={byRevenue.slice(0, 10)} rowKey={(r) => r.name} defaultSort="revenue" initialLimit={10} onRowClick={setSelected} />
+      </Panel>
+
+      {/* Rankings by Sessions */}
+      <SectionHeader index={4} title="Class Volume Rankings" description="Trainers ranked by number of classes taught. High volume indicates reliability and scheduling preference." />
+      <Panel title="Class Volume Leaderboard" subtitle="Number of classes taught in the selected period">
+        <DataTable cols={sessionsColumns()} rows={bySessions.slice(0, 10)} rowKey={(r) => r.name} defaultSort="sessions" initialLimit={10} onRowClick={setSelected} />
+      </Panel>
+
+      {/* Conversion & Retention Rankings */}
+      <SectionHeader index={5} title="Member Conversion & Retention" description="How effectively trainers convert new members and retain them long-term. These metrics reflect teaching quality and member experience." />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel title="Conversion Rate Rankings" subtitle="Percentage of new members converted to paying customers">
+          <DataTable cols={conversionColumns()} rows={byConversion.slice(0, 10)} rowKey={(r) => r.name} defaultSort="conversionRate" initialLimit={10} onRowClick={setSelected} />
+        </Panel>
+        <Panel title="Retention Rate Rankings" subtitle="Percentage of new members retained long-term">
+          <DataTable cols={retentionColumns()} rows={byRetention.slice(0, 10)} rowKey={(r) => r.name} defaultSort="retentionRate" initialLimit={10} onRowClick={setSelected} />
+        </Panel>
+      </div>
+
+      {/* Class Performance */}
+      <SectionHeader index={6} title="Class Performance Metrics" description="Average class size and utilization efficiency. Higher class averages indicate better member engagement and scheduling optimization." />
+      <Panel title="Class Average Rankings" subtitle="Average number of attendees per class">
+        <DataTable cols={classAvgColumns()} rows={byClassAvg.slice(0, 10)} rowKey={(r) => r.name} defaultSort="classAvg" initialLimit={10} onRowClick={setSelected} />
+      </Panel>
+
+      {/* Top Performer MoM Chart */}
+      {topTeacher && topTeacherMoM.length > 1 && (
+        <>
+          <SectionHeader index={7} title="Top Performer Trend" description={`Month-on-month performance trend for ${topTeacher.name}, the highest revenue generator.`} />
+          <Panel title={`${topTeacher.name} - Monthly Performance`} subtitle="Revenue, classes, and attendance over time">
+            <TrendChart data={topTeacherMoM} bars={[{ key: "revenue", name: "Revenue" }]} lines={[{ key: "sessions", name: "Classes" }, { key: "checkedIn", name: "Attendance" }]} height={320} />
+          </Panel>
+        </>
+      )}
+
       <AnimatePresence>{selected && <TrainerModal teacher={selected} allMonths={monthly.filter((item) => item.name === selected.name)} onClose={() => setSelected(null)} />}</AnimatePresence>
       <AnimatePresence>{compareOpen && <CompareModal teachers={aggregateTeachers(monthly, "all")} onClose={() => setCompareOpen(false)} />}</AnimatePresence>
     </div>
