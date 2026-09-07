@@ -27,18 +27,25 @@ import { InsightsSection } from "./components/sections/InsightsSection";
 import { ClassSection } from "./components/sections/ClassSection";
 import { AdvancedLabsSection } from "./components/sections/AdvancedLabsSection";
 import { TeacherPerformanceSection } from "./components/sections/TeacherPerformanceSection";
+import { NewClientsSection } from "./components/sections/NewClientsSection";
+import { LapsedSection } from "./components/sections/LapsedSection";
+import { LateCancellationSection } from "./components/sections/LateCancellationSection";
+import { BookingsSection } from "./components/sections/BookingsSection";
+import { FunnelSection } from "./components/sections/FunnelSection";
 import { TrendChart, Donut } from "./components/Charts";
 
-type View = "sales" | "classes" | "teachers" | "late" | "bookings" | "leads" | "members";
+type View = "sales" | "classes" | "teachers" | "late" | "bookings" | "leads" | "members" | "newclients" | "lapsed";
 
 const VIEW_TABS = [
   { id: "sales", label: "Sales", icon: BarChart3 },
   { id: "classes", label: "Classes", icon: Dumbbell },
   { id: "teachers", label: "Teachers", icon: Users },
-  { id: "late", label: "Late cancels", icon: CalendarClock },
+  { id: "newclients", label: "New Clients", icon: Star },
+  { id: "lapsed", label: "Lapsed", icon: AlertTriangle },
+  { id: "late", label: "Late Cancels", icon: CalendarClock },
   { id: "bookings", label: "Bookings", icon: Receipt },
-  { id: "leads", label: "Leads & Funnel", icon: Trophy },
-  { id: "members", label: "Conversion & Retention", icon: Activity },
+  { id: "leads", label: "Funnel", icon: Trophy },
+  { id: "members", label: "Conversion", icon: Activity },
 ] as const;
 
 const SALES_SECTIONS = [
@@ -91,6 +98,7 @@ export default function App() {
   const [members, setMembers] = useState<FlexTable>({ headers: [], rows: [] });
   const [bookings, setBookings] = useState<FlexTable>({ headers: [], rows: [] });
   const [leads, setLeads] = useState<FlexTable>({ headers: [], rows: [] });
+  const [lapsed, setLapsed] = useState<FlexTable>({ headers: [], rows: [] });
   const [classMeta, setClassMeta] = useState({ sessionsSheet: "", recurringSheet: "", teacherSheet: "" });
   const [loading, setLoading] = useState(true);
   const [classLoading, setClassLoading] = useState(true);
@@ -124,6 +132,7 @@ export default function App() {
       setMembers(parseFlexible(payload.intelligence.members));
       setBookings(parseFlexible(payload.intelligence.bookings));
       setLeads(parseFlexible(payload.intelligence.leads));
+      setLapsed(parseFlexible(payload.intelligence.lapsed));
       setClassMeta({
         sessionsSheet: payload.classes.sessionsSheet || "sessions",
         recurringSheet: payload.classes.recurringSheet || "—",
@@ -142,6 +151,7 @@ export default function App() {
       setMembers({ headers: [], rows: [] });
       setBookings({ headers: [], rows: [] });
       setLeads({ headers: [], rows: [] });
+      setLapsed({ headers: [], rows: [] });
       setError(message);
       setClassError(message);
     } finally {
@@ -302,6 +312,10 @@ export default function App() {
                     ? `${intFmt(rows.length)} line items · ${locations.length} locations · through ${dateStr(maxDate)}`
                     : view === "classes" ? `${intFmt(sessions.length)} sessions · ${locations.length} locations · ${classMeta.sessionsSheet || "sessions"}`
                     : view === "teachers" ? `${intFmt(payroll.rows.length)} payroll records · ${intFmt(bookings.rows.length)} booking records`
+                    : view === "newclients" || view === "members" ? `${intFmt(members.rows.length)} new client records`
+                    : view === "lapsed" ? `${intFmt(lapsed.rows.length)} lapsed member records`
+                    : view === "late" || view === "bookings" ? `${intFmt(bookings.rows.length)} booking records`
+                    : view === "leads" ? `${intFmt(leads.rows.length)} leads in pipeline`
                     : "Live operational intelligence from Google Sheets"}
                 </p>
               </div>
@@ -555,14 +569,18 @@ export default function App() {
           <LoadError title={`${activeView.label} data is unavailable`} message={error} onRetry={() => loadData()} />
         ) : view === "teachers" ? (
           <TeacherPerformanceSection payroll={payroll} sessions={sessions} members={members} />
+        ) : view === "newclients" ? (
+          <NewClientsSection members={members} />
+        ) : view === "lapsed" ? (
+          <LapsedSection lapsed={lapsed} />
         ) : view === "late" ? (
-          <OperationalFeed title="Late Cancellation Intelligence" description="Every late-cancelled booking, separated from class-performance analysis." feed={bookings} filterHeader="Late Cancelled" />
+          <LateCancellationSection bookings={bookings} />
         ) : view === "bookings" ? (
-          <OperationalFeed title="Bookings Intelligence" description="Member-level booking, attendance, cancellation and session demand records." feed={bookings} />
+          <BookingsSection bookings={bookings} />
         ) : view === "leads" ? (
-          <OperationalFeed title="Leads & Funnel Performance" description="Lead source, stage, trial, conversion, associate and retention outcomes." feed={leads} />
+          <FunnelSection leads={leads} />
         ) : (
-          <OperationalFeed title="New Client Conversion & Retention" description="Newcomer journeys from first visit through conversion, purchase and retention." feed={members} />
+          <NewClientsSection members={members} />
         )}
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-5 text-[10.5px] text-lo">
@@ -578,12 +596,6 @@ export default function App() {
       </main>
     </div>
   );
-}
-
-function OperationalFeed({ title, description, feed, filterHeader }: { title: string; description: string; feed: FlexTable; filterHeader?: string }) {
-  const visibleRows = filterHeader ? feed.rows.filter((row) => /^(true|yes|1)$/i.test(row[filterHeader] || "")) : feed.rows;
-  const headers = feed.headers.slice(0, 12);
-  return <div className="space-y-6"><SectionHeader index={1} title={title} description={description} meta={<span className="source-badge"><span className="source-dot" />{intFmt(visibleRows.length)} live records</span>} /><Panel title="Live source records" subtitle="Use the dedicated filters and analytics controls as this workspace evolves."><div className="overflow-auto"><table className="tbl w-full min-w-[1100px] text-[11px]"><thead className="tbl-head"><tr>{headers.map((header) => <th key={header} className="h-10 whitespace-nowrap px-3 text-left">{header}</th>)}</tr></thead><tbody>{visibleRows.slice(0, 100).map((row, index) => <tr key={index} className="tbl-row">{headers.map((header) => <td key={header} className="h-10 max-h-10 truncate px-3 text-mid" title={row[header]}>{row[header] || "—"}</td>)}</tr>)}</tbody></table></div></Panel></div>;
 }
 
 function DashboardLoader({ label }: { label: string }) {

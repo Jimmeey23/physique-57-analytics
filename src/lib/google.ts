@@ -17,6 +17,10 @@ export interface DashboardPayload {
     bookingsSheet: string;
     leads: string[][];
     leadsSheet: string;
+    lapsed: string[][];
+    lapsedSheet: string;
+    checkins: string[][];
+    checkinsSheet: string;
   };
   syncedAt: string;
 }

@@ -13,8 +13,10 @@ const config = {
   salesSpreadsheetId: process.env.SALES_SPREADSHEET_ID || process.env.VITE_SALES_SPREADSHEET_ID || "1HbGnJk-peffUp7XoXSlsL55924E9yUt8cP_h93cdTT0",
   salesSheetName: process.env.SALES_SHEET_NAME || "Sales",
   classSpreadsheetId: process.env.CLASS_SPREADSHEET_ID || process.env.VITE_SESSIONS_SPREADSHEET_ID || "16wFlke0bHFcmfn-3UyuYlGnImBq0DY7ouVYAlAFTZys",
-  payrollSpreadsheetId: process.env.PAYROLL_SPREADSHEET_ID || process.env.VITE_PAYROLL_SPREADSHEET_ID || "",
-  leadsSpreadsheetId: process.env.LEADS_SPREADSHEET_ID || "",
+  payrollSpreadsheetId: process.env.PAYROLL_SPREADSHEET_ID || process.env.VITE_PAYROLL_SPREADSHEET_ID || "149ILDqovzZA6FRUJKOwzutWdVqmqWBtWPfzG3A0zxTI",
+  leadsSpreadsheetId: process.env.LEADS_SPREADSHEET_ID || "1dQMNF69WnXVQdhlLvUZTig3kL97NA21k6eZ9HRu6xiQ",
+  lapsedSpreadsheetId: process.env.LAPSED_SPREADSHEET_ID || "1x-0iFgnYmEqt-b2MfAgHVx5CErcX5NtZYB9p5Rh6f1I",
+  checkinsSpreadsheetId: process.env.CHECKINS_SPREADSHEET_ID || "1a7XKv2WCog7o8nYuV8YcFdqtfPYJNRO6DelJ6Hn_z6Q",
 };
 const classSheets = {
   sessions: ["sessions", "Sessions", "SESSIONS", "Session", "session", "Class Sessions"],
@@ -26,6 +28,8 @@ const intelligenceSheets = {
   members: ["New", "new", "NEW"],
   bookings: ["bookings", "Bookings", "BOOKINGS"],
   leads: ["◉ Leads", "Leads", "leads", "LEADS"],
+  lapsed: ["Lapsed", "lapsed", "LAPSED"],
+  checkins: ["Checkins", "checkins", "CHECKINS", "Check-ins", "CheckIns"],
 };
 let tokenCache = null;
 
@@ -77,7 +81,7 @@ app.disable("x-powered-by");
 app.get("/api/health", (_request, response) => response.json({ ok: true, googleConfigured: Boolean(config.clientId && config.clientSecret && config.refreshToken) }));
 app.get("/api/dashboard", async (_request, response) => {
   try {
-    const [sales, sessions, recurring, teacherRecurring, payroll, members, bookings, leads] = await Promise.all([
+    const [sales, sessions, recurring, teacherRecurring, payroll, members, bookings, leads, lapsed, checkins] = await Promise.all([
       sheetValues(config.salesSpreadsheetId, config.salesSheetName),
       firstAvailable(config.classSpreadsheetId, classSheets.sessions, true),
       firstAvailable(config.classSpreadsheetId, classSheets.recurring, true).catch(() => ({ values: [], sheet: "" })),
@@ -86,6 +90,8 @@ app.get("/api/dashboard", async (_request, response) => {
       config.payrollSpreadsheetId ? firstAvailable(config.payrollSpreadsheetId, intelligenceSheets.members, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
       config.payrollSpreadsheetId ? firstAvailable(config.payrollSpreadsheetId, ["bookings", "Bookings", "Late Cancellations"], true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
       config.leadsSpreadsheetId ? firstAvailable(config.leadsSpreadsheetId, intelligenceSheets.leads, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
+      config.lapsedSpreadsheetId ? firstAvailable(config.lapsedSpreadsheetId, intelligenceSheets.lapsed, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
+      config.checkinsSpreadsheetId ? firstAvailable(config.checkinsSpreadsheetId, intelligenceSheets.checkins, true).catch(() => ({ values: [], sheet: "" })) : { values: [], sheet: "" },
     ]);
     response.set("Cache-Control", "no-store").json({
       sales,
@@ -95,6 +101,8 @@ app.get("/api/dashboard", async (_request, response) => {
         members: members.values, membersSheet: members.sheet,
         bookings: bookings.values, bookingsSheet: bookings.sheet,
         leads: leads.values, leadsSheet: leads.sheet,
+        lapsed: lapsed.values, lapsedSheet: lapsed.sheet,
+        checkins: checkins.values, checkinsSheet: checkins.sheet,
       },
       syncedAt: new Date().toISOString(),
     });
