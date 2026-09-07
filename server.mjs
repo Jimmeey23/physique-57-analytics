@@ -98,13 +98,34 @@ async function accessToken() {
     if (err?.name === "AbortError") {
       throw new Error("Connection to Google timed out after 15 seconds. Check your internet connection and ensure googleapis.com is reachable.");
     }
-    const msg = err?.cause?.code === "ENOTFOUND" 
-      ? "Cannot reach Google (DNS lookup failed). Check your internet connection."
-      : err?.cause?.code === "ECONNREFUSED"
-      ? "Cannot reach Google (connection refused). Check your internet connection or firewall."
-      : err?.cause?.code === "ETIMEDOUT"
-      ? "Cannot reach Google (connection timed out). Check your internet connection."
-      : `Network error reaching Google: ${err?.message || err}`;
+    // Extract detailed error info
+    const cause = err?.cause;
+    const code = cause?.code || cause?.errno;
+    const syscall = cause?.syscall;
+    const hostname = cause?.hostname || cause?.address;
+    
+    let msg;
+    if (code === "ENOTFOUND") {
+      msg = `DNS lookup failed${hostname ? ` for ${hostname}` : ""}. Cannot resolve googleapis.com — check your internet connection and DNS settings.`;
+    } else if (code === "ECONNREFUSED") {
+      msg = "Connection refused. A firewall or proxy may be blocking outbound HTTPS to googleapis.com.";
+    } else if (code === "ETIMEDOUT" || code === "ETIMEOUT") {
+      msg = "Connection timed out. The server cannot reach googleapis.com within the timeout period.";
+    } else if (code === "ECONNRESET") {
+      msg = "Connection was reset. This may indicate a network issue or firewall interference.";
+    } else if (syscall === "getaddrinfo") {
+      msg = `DNS resolution failed${hostname ? ` for ${hostname}` : ""}. The server cannot resolve Google's domain — check your network configuration.`;
+    } else if (code === "CERT_HAS_EXPIRED" || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || code === "SELF_SIGNED_CERT_IN_CHAIN") {
+      msg = "SSL/TLS certificate error. This may indicate a proxy intercepting HTTPS traffic or a system certificate issue.";
+    } else {
+      // Generic fallback with more context
+      const details = [];
+      if (code) details.push(`code: ${code}`);
+      if (syscall) details.push(`syscall: ${syscall}`);
+      if (hostname) details.push(`host: ${hostname}`);
+      const detailStr = details.length ? ` (${details.join(", ")})` : "";
+      msg = `Network error reaching Google${detailStr}: ${err?.message || "fetch failed"}. Verify the server has outbound internet access to googleapis.com.`;
+    }
     throw new Error(msg);
   }
   const json = await response.json().catch(() => ({}));
@@ -138,7 +159,10 @@ async function sheetValues(spreadsheetId, sheetName, formatted = false) {
     if (err?.name === "AbortError") {
       throw new Error(`Timeout reading ${sheetName} — Google Sheets API took too long to respond.`);
     }
-    throw new Error(`Network error reading ${sheetName}: ${err?.message || err}`);
+    const cause = err?.cause;
+    const code = cause?.code || cause?.errno;
+    const detail = code ? ` (${code})` : "";
+    throw new Error(`Network error reading ${sheetName}${detail}: ${err?.message || "fetch failed"}. Verify outbound internet access to googleapis.com.`);
   }
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
