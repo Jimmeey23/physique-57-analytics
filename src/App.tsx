@@ -19,7 +19,7 @@ import { compact, dateStr, intFmt, pct } from "./lib/format";
 import { emptyFilters, FiltersBar, type FilterState } from "./components/Filters";
 import { applyClassFilters, ClassFiltersBar, emptyClassFilters, type ClassFilterState } from "./components/ClassFilters";
 import { MetricCard } from "./components/MetricCard";
-import { Panel, SectionHeader, Btn, Tip } from "./components/ui";
+import { Panel, SectionHeader, Btn } from "./components/ui";
 import { TimeSection } from "./components/sections/TimeSection";
 import { MixSection } from "./components/sections/MixSection";
 import { PeopleSection } from "./components/sections/PeopleSection";

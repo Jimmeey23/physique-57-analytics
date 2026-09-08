@@ -1,9 +1,4 @@
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  CalendarClock, AlertTriangle, User,
-  Ban, Activity,
-} from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
 import { intFmt, pct, compact } from "../../lib/format";
 import { cn } from "../../utils/cn";

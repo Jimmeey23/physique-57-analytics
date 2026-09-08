@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Award, BarChart3, GitCompareArrows, Medal, TrendingUp, Users, X } from "lucide-react";
+import { Award, BarChart3, CalendarDays, GitCompareArrows, Layers3, Medal, TrendingUp, Users, X } from "lucide-react";
 import type { FlexTable, SessionRow } from "../../lib/sessions";
 import { compact, dec, intFmt, pct } from "../../lib/format";
 import { cn } from "../../utils/cn";
@@ -122,7 +122,7 @@ function buildTeacherData(payroll: FlexTable, sessions: SessionRow[], members: F
     current.converted = outcome.converted;
     current.retained = outcome.retained;
   });
-  return [...map.values()].sort((a, b) => a.month.localeCompare(b.month));
+  return [...map.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 function aggregateTeachers(months: TeacherMonth[], month: string): TeacherTotal[] {
@@ -139,7 +139,7 @@ function aggregateTeachers(months: TeacherMonth[], month: string): TeacherTotal[
     const empty = sum("empty");
     return {
       teacherId: entries[0].teacherId, name, email: entries[0].email, rank: 0,
-      locations: [...new Set(entries.flatMap((item) => [...item.locations]))], months: entries,
+      locations: [...new Set(entries.flatMap((item) => [...item.locations]))], months: [...entries].sort((a, b) => b.month.localeCompare(a.month)),
       cycle: sum("cycle"), strength: sum("strength"), barre: sum("barre"), sessions,
       empty, nonEmpty: sum("nonEmpty"), checkedIn, revenue, newMembers,
       converted: sum("converted"), retained: sum("retained"), bookings, lateCancels: sum("lateCancels"),
@@ -246,13 +246,9 @@ export function TeacherPerformanceSection({ payroll, sessions, members }: { payr
   // Calculate aggregate stats
   const totalRevenue = teachers.reduce((sum, item) => sum + item.revenue, 0);
   const totalSessions = teachers.reduce((sum, item) => sum + item.sessions, 0);
-  const totalCheckedIn = teachers.reduce((sum, item) => sum + item.checkedIn, 0);
   const totalNewMembers = teachers.reduce((sum, item) => sum + item.newMembers, 0);
   const totalConverted = teachers.reduce((sum, item) => sum + item.converted, 0);
-  const totalRetained = teachers.reduce((sum, item) => sum + item.retained, 0);
   const avgConversionRate = totalNewMembers > 0 ? (totalConverted / totalNewMembers) * 100 : 0;
-  const avgRetentionRate = totalNewMembers > 0 ? (totalRetained / totalNewMembers) * 100 : 0;
-  const avgClassSize = totalSessions > 0 ? totalCheckedIn / totalSessions : 0;
   
   // Rankings by different criteria
   const byRevenue = useMemo(() => [...teachers].sort((a, b) => b.revenue - a.revenue), [teachers]);
@@ -285,7 +281,7 @@ export function TeacherPerformanceSection({ payroll, sessions, members }: { payr
       {/* MoM Performance Section */}
       <SectionHeader index={2} title="Month-on-Month Performance" description="Track how teacher performance evolves over time. Click any trainer row to see detailed month-on-month trends." />
       
-      <Panel title="All Trainers - Time Period Selection" subtitle={`Showing data for ${month === "all" ? "all months" : monthLabel(month)} · ${teachers.length} trainers`} right={
+      <Panel title="Trainer MoM performance" subtitle={`Showing ${month === "all" ? "all months" : monthLabel(month)} · expand a trainer, then expand any month for its child metrics`} right={
         <div className="flex items-center gap-2">
           <select value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 rounded-lg border border-line bg-surface2 px-3 text-[11px] font-medium text-hi">
             <option value="all">All months</option>
@@ -296,8 +292,15 @@ export function TeacherPerformanceSection({ payroll, sessions, members }: { payr
           </Btn>
         </div>
       }>
-        <DataTable cols={columns()} rows={teachers} rowKey={(r) => r.name} defaultSort="revenue" initialLimit={20} csvName="teacher-performance" onRowClick={setSelected} />
+        <DataTable cols={columns()} rows={teachers} rowKey={(r) => r.name} defaultSort="revenue" initialLimit={20} csvName="teacher-performance"
+          expand={(teacher) => <TeacherMoMTable teacher={teacher} onOpen={() => setSelected(teacher)} />} />
       </Panel>
+
+      {topTeacher && topTeacherMoM.length > 1 && (
+        <Panel title={`${topTeacher.name} · MoM trend`} subtitle="The current revenue leader shown here so the trend stays inside the Month-on-Month section.">
+          <TrendChart data={[...topTeacherMoM].reverse()} bars={[{ key: "revenue", name: "Revenue" }]} lines={[{ key: "sessions", name: "Classes" }, { key: "checkedIn", name: "Attendance" }]} height={300} />
+        </Panel>
+      )}
 
       {/* Rankings by Revenue */}
       <SectionHeader index={3} title="Revenue Rankings" description="Trainers ranked by total revenue generated. Revenue is the primary commercial metric reflecting both class volume and pricing power." />
@@ -328,16 +331,6 @@ export function TeacherPerformanceSection({ payroll, sessions, members }: { payr
         <DataTable cols={classAvgColumns()} rows={byClassAvg.slice(0, 10)} rowKey={(r) => r.name} defaultSort="classAvg" initialLimit={10} onRowClick={setSelected} />
       </Panel>
 
-      {/* Top Performer MoM Chart */}
-      {topTeacher && topTeacherMoM.length > 1 && (
-        <>
-          <SectionHeader index={7} title="Top Performer Trend" description={`Month-on-month performance trend for ${topTeacher.name}, the highest revenue generator.`} />
-          <Panel title={`${topTeacher.name} - Monthly Performance`} subtitle="Revenue, classes, and attendance over time">
-            <TrendChart data={topTeacherMoM} bars={[{ key: "revenue", name: "Revenue" }]} lines={[{ key: "sessions", name: "Classes" }, { key: "checkedIn", name: "Attendance" }]} height={320} />
-          </Panel>
-        </>
-      )}
-
       <AnimatePresence>{selected && <TrainerModal teacher={selected} allMonths={monthly.filter((item) => item.name === selected.name)} onClose={() => setSelected(null)} />}</AnimatePresence>
       <AnimatePresence>{compareOpen && <CompareModal teachers={aggregateTeachers(monthly, "all")} onClose={() => setCompareOpen(false)} />}</AnimatePresence>
     </div>
@@ -348,15 +341,71 @@ function Summary({ icon, label, value, sub, tone }: { icon: React.ReactNode; lab
   return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`teacher-summary teacher-summary-${tone}`}><span className="teacher-summary-icon">{icon}</span><div><p>{label}</p><strong>{value}</strong>{sub && <small>{sub}</small>}</div></motion.div>;
 }
 
+interface MonthRow extends TeacherMonth {
+  classAvg: number;
+  revPerSession: number;
+  conversionRate: number;
+  retentionRate: number;
+  lateCancelRate: number;
+}
+
+const toMonthRow = (item: TeacherMonth): MonthRow => ({
+  ...item,
+  classAvg: item.sessions ? item.checkedIn / item.sessions : 0,
+  revPerSession: item.sessions ? item.revenue / item.sessions : 0,
+  conversionRate: item.newMembers ? (item.converted / item.newMembers) * 100 : 0,
+  retentionRate: item.newMembers ? (item.retained / item.newMembers) * 100 : 0,
+  lateCancelRate: item.bookings ? (item.lateCancels / item.bookings) * 100 : 0,
+});
+
+function monthColumns(): Col<MonthRow>[] {
+  return [
+    { key: "month", label: "Month", align: "left", value: (r) => r.month, totalMode: "none", width: "116px", render: (r) => <span className="mom-month-badge"><CalendarDays className="h-3 w-3" />{monthLabel(r.month)}</span> },
+    { key: "sessions", label: "Classes", value: (r) => r.sessions, fmt: intFmt },
+    { key: "checkedIn", label: "Checked in", value: (r) => r.checkedIn, fmt: intFmt },
+    { key: "bookings", label: "Bookings", value: (r) => r.bookings, fmt: intFmt },
+    { key: "lateCancels", label: "Late cancels", value: (r) => r.lateCancels, fmt: intFmt },
+    { key: "newMembers", label: "New", value: (r) => r.newMembers, fmt: intFmt },
+    { key: "converted", label: "Converted", value: (r) => r.converted, fmt: intFmt },
+    { key: "retained", label: "Retained", value: (r) => r.retained, fmt: intFmt },
+    { key: "classAvg", label: "Class avg", value: (r) => r.classAvg, fmt: (n) => dec(n, 1), totalMode: "avg" },
+    { key: "revenue", label: "Revenue", value: (r) => r.revenue, fmt: compact, heat: true },
+    { key: "revPerSession", label: "Rev/class", value: (r) => r.revPerSession, fmt: compact, totalMode: "avg" },
+  ];
+}
+
+function TeacherMoMTable({ teacher, onOpen }: { teacher: TeacherTotal; onOpen: () => void }) {
+  const rows = teacher.months.map(toMonthRow).sort((a, b) => b.month.localeCompare(a.month));
+  return <div className="mom-nested-shell">
+    <div className="mom-nested-head">
+      <div><p className="kicker">Monthly history</p><h4>{teacher.name}</h4></div>
+      <Btn size="xs" active onClick={onOpen}><TrendingUp className="h-3 w-3" /> Open full analysis</Btn>
+    </div>
+    <DataTable cols={monthColumns()} rows={rows} rowKey={(r) => r.month} defaultSort="month" initialLimit={rows.length} csvName={`${teacher.name}-mom`}
+      dense level={1} expand={(row) => <MonthMetricChildren row={row} />} />
+  </div>;
+}
+
+function MonthMetricChildren({ row }: { row: MonthRow }) {
+  const childRows = [
+    { group: "Delivery", tone: "violet", primary: `${intFmt(row.sessions)} classes`, secondary: `${intFmt(row.nonEmpty)} non-empty · ${intFmt(row.empty)} empty`, detail: `${intFmt(row.cycle)} Cycle · ${intFmt(row.strength)} Strength · ${intFmt(row.barre)} Barre` },
+    { group: "Demand", tone: "blue", primary: `${intFmt(row.checkedIn)} checked in`, secondary: `${intFmt(row.bookings)} bookings · ${intFmt(row.lateCancels)} late cancels`, detail: `${dec(row.classAvg, 1)} class average · ${pct(row.lateCancelRate)} late-cancel rate` },
+    { group: "Member outcomes", tone: "emerald", primary: `${intFmt(row.newMembers)} new members`, secondary: `${intFmt(row.converted)} converted · ${intFmt(row.retained)} retained`, detail: `${pct(row.conversionRate)} conversion · ${pct(row.retentionRate)} retention` },
+    { group: "Commercial", tone: "amber", primary: compact(row.revenue), secondary: `${compact(row.revPerSession)} per class`, detail: `${row.locations.size} location${row.locations.size === 1 ? "" : "s"} · ${[...row.locations].join(" · ") || "No location recorded"}` },
+  ];
+  return <div className="mom-child-grid">{childRows.map((child) => <div key={child.group} className={`mom-child-card mom-child-${child.tone}`}><span className="mom-child-icon"><Layers3 className="h-3.5 w-3.5" /></span><div><p>{child.group}</p><strong>{child.primary}</strong><span>{child.secondary}</span><small>{child.detail}</small></div></div>)}</div>;
+}
+
 function TrainerModal({ teacher, allMonths, onClose }: { teacher: TeacherTotal; allMonths: TeacherMonth[]; onClose: () => void }) {
   const [metric, setMetric] = useState<MetricKey>("revenue");
-  const data = allMonths.map((item) => ({ label: monthLabel(item.month), value: metricValue(item, metric) }));
+  const sortedMonths = [...allMonths].sort((a, b) => b.month.localeCompare(a.month));
+  const data = [...sortedMonths].reverse().map((item) => ({ label: monthLabel(item.month), value: metricValue(item, metric) }));
   return <ModalShell title={teacher.name} subtitle={`Rank #${teacher.rank} · ${teacher.locations.join(" · ")}`} onClose={onClose}>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[
       ["Classes", intFmt(teacher.sessions)], ["Checked in", intFmt(teacher.checkedIn)], ["Bookings", intFmt(teacher.bookings)], ["Late cancels", intFmt(teacher.lateCancels)],
       ["New members", intFmt(teacher.newMembers)], ["Converted", intFmt(teacher.converted)], ["Retained", intFmt(teacher.retained)], ["Revenue", compact(teacher.revenue)],
     ].map(([label, value]) => <div key={label} className="mini-stat"><span>{label}</span><b>{value}</b></div>)}</div>
-    <div className="panel overflow-hidden"><div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3"><b className="mr-auto text-[12px] text-hi">Month-on-month performance</b>{metricOptions.map((option) => <Btn key={option.key} size="xs" active={metric === option.key} onClick={() => setMetric(option.key)}>{option.label}</Btn>)}</div><TrendChart data={data} bars={[{ key: "value", name: metricOptions.find((o) => o.key === metric)?.label || metric }]} height={280} /></div>
+    <div className="panel overflow-hidden"><div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3"><b className="mr-auto text-[12px] text-hi">Month-on-month performance</b>{metricOptions.map((option) => <Btn key={option.key} size="xs" active={metric === option.key} onClick={() => setMetric(option.key)}>{option.label}</Btn>)}</div><TrendChart data={data} bars={[{ key: "value", name: metricOptions.find((o) => o.key === metric)?.label || metric }]} height={260} /><div className="border-t border-line"><DataTable cols={monthColumns()} rows={sortedMonths.map(toMonthRow)} rowKey={(r) => r.month} defaultSort="month" initialLimit={sortedMonths.length} csvName={`${teacher.name}-mom-detail`} dense level={1} expand={(row) => <MonthMetricChildren row={row} />} /></div></div>
   </ModalShell>;
 }
 

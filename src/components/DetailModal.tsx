@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "../utils/cn";
 
 interface DetailModalProps {

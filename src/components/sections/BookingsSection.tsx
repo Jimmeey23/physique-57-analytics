@@ -1,12 +1,6 @@
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Receipt, Calendar, Users,
-  Star, BarChart3, TrendingDown,
-} from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
-import { compact, intFmt, pct, dec } from "../../lib/format";
-import { cn } from "../../utils/cn";
+import { compact, intFmt, pct } from "../../lib/format";
 import { MetricCard } from "../MetricCard";
 import type { KPI } from "../../lib/analytics";
 import { Panel, SectionHeader, Btn } from "../ui";

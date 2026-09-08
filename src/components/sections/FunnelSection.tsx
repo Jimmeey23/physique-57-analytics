@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Target, Users, Zap,
-  CheckCircle2, XCircle, Clock,
-} from "lucide-react";
 import type { FlexTable } from "../../lib/sessions";
-import { intFmt, pct, dec } from "../../lib/format";
+import { intFmt, pct } from "../../lib/format";
 import { cn } from "../../utils/cn";
 import { MetricCard } from "../MetricCard";
 import type { KPI } from "../../lib/analytics";
